@@ -17,7 +17,7 @@ jobs:
 
       - name: Validate config.xml and app.js
         run: |
-          xmllint --noout config.xml
+          python3 -c "import xml.etree.ElementTree as ET; ET.parse('config.xml')"
           node --check app.js
 
       - name: Package TiViLook-test.wgt
