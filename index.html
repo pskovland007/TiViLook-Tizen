@@ -8,59 +8,69 @@
     <script type="text/javascript" src="$WEBAPIS/webapis/webapis.js"></script>
 </head>
 <body>
-    <!-- Samsung native hardware video surface -->
     <object id="av-player" type="application/avplayer"></object>
-    <!-- Fallback HTML5 player for desktop browser preview -->
     <video id="html5-player" autoplay playsinline></video>
 
-    <!-- Top-left clock -->
     <div id="clock-badge">00:00</div>
 
-    <!-- Top-right signal / status pill -->
     <div id="status-badge">
-        <span id="status-dot"></span>
-        <span id="status-text">Готов</span>
+        <span id="signal-bars">
+            <span class="s-bar b1"></span>
+            <span class="s-bar b2"></span>
+            <span class="s-bar b3"></span>
+            <span class="s-bar b4"></span>
+        </span>
+        <span id="status-text">Запуск...</span>
     </div>
 
-    <!-- Left Sidebar: Test Channels -->
-    <div id="side-panel" class="panel">
-        <div class="panel-header">
-            <div class="panel-title">TiViLook Test</div>
-            <div class="panel-subtitle">Проверка Samsung TV (AVPlay)</div>
+    <!-- Left SIDE Panel (Groups & Channels) -->
+    <div id="side-panel" class="panel hidden">
+        <div class="side-header">
+            <div class="side-brand">TiViLook</div>
+            <div id="side-counter">0 / 0</div>
+            <div class="side-tabs">
+                <span id="tab-groups" class="side-tab">Группы</span>
+                <span id="tab-channels" class="side-tab active">Каналы</span>
+            </div>
+            <div id="side-group-caption">Все каналы</div>
         </div>
-        <div id="channel-list"></div>
-        <div class="panel-footer">
-            <span>▲▼ Выбор</span>
-            <span>OK Пуск</span>
-            <span>▶ Info</span>
-            <span>◀ Закрыть</span>
+        <div id="side-list"></div>
+        <div class="side-footer">
+            <span class="hint-key">▲▼</span> Листать
+            <span class="hint-key">◀▶</span> Группы
+            <span class="hint-dot dot-yellow"></span> ★ Избр.
+            <span class="hint-dot dot-green"></span> Зеркало
+            <span class="hint-dot dot-red"></span> Обновить
         </div>
     </div>
 
-    <!-- Right Panel: Stream Info & Diagnostics -->
+    <!-- Right INFO Panel -->
     <div id="info-panel" class="panel hidden">
-        <div class="panel-title center-title">Info</div>
-        <div id="info-rows">
+        <div class="info-title">Info</div>
+        <div class="info-block">
             <div class="info-row" id="info-ch">Канал: —</div>
-            <div class="info-row" id="info-engine">Плеер: —</div>
+            <div class="info-row" id="info-group">Группа: —</div>
             <div class="info-row info-gap" id="info-res">Разрешение: —</div>
+            <div class="info-row" id="info-proto">Поток: —</div>
             <div class="info-row" id="info-state">Состояние: —</div>
+            <div class="info-row info-gap" id="info-catalog">Каталог: —</div>
+            <div class="info-row" id="info-engine">Плеер: —</div>
             <div class="info-row" id="info-tizen">Система: —</div>
         </div>
         <div class="diag-title">Журнал событий</div>
         <div id="diag-log"></div>
     </div>
 
-    <!-- Bottom OSD Banner -->
+    <!-- Bottom OSD Bar -->
     <div id="osd-bar" class="panel hidden">
         <div id="osd-channel-name">Канал</div>
         <div id="osd-channel-meta">Подключение...</div>
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Toast -->
     <div id="toast-box" class="hidden"></div>
 
-    <!-- Splash Screen (TiViLook 16-ray eye, NO text) -->
+    <!-- Splash Screen (16-ray eye, NO text) -->
     <div id="splash-overlay">
         <img id="splash-icon" src="icon.png" alt="">
     </div>

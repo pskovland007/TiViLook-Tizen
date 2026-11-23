@@ -36,23 +36,23 @@ html, body {
 }
 
 .panel {
-    background-color: rgba(20, 25, 36, 0.90);
+    background-color: rgba(16, 22, 34, 0.91);
     border: 2px solid rgba(0, 229, 255, 0.72);
     border-radius: 22px;
-    box-shadow: 0 0 28px rgba(0, 229, 255, 0.28);
+    box-shadow: 0 0 28px rgba(0, 229, 255, 0.26);
 }
 
 #clock-badge {
     position: fixed;
     left: 36px;
-    top: 28px;
+    top: 26px;
     z-index: 20;
     padding: 10px 22px;
     font-size: 28px;
     font-weight: 700;
     letter-spacing: 1px;
     color: #FFFFFF;
-    background-color: rgba(15, 20, 30, 0.78);
+    background-color: rgba(14, 19, 30, 0.78);
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 14px;
 }
@@ -60,74 +60,122 @@ html, body {
 #status-badge {
     position: fixed;
     right: 36px;
-    top: 28px;
+    top: 26px;
     z-index: 20;
     padding: 10px 22px;
-    font-size: 24px;
+    font-size: 23px;
     font-weight: 600;
     color: #E2E8F0;
-    background-color: rgba(15, 20, 30, 0.78);
+    background-color: rgba(14, 19, 30, 0.78);
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 14px;
 }
 
-#status-dot {
+#signal-bars {
     display: inline-block;
-    width: 14px;
-    height: 14px;
-    margin-right: 10px;
-    border-radius: 50%;
-    background-color: #22C55E;
     vertical-align: middle;
+    margin-right: 12px;
+    height: 22px;
 }
 
+.s-bar {
+    display: inline-block;
+    width: 6px;
+    margin-right: 3px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.25);
+    vertical-align: bottom;
+}
+
+.s-bar.b1 { height: 7px; }
+.s-bar.b2 { height: 12px; }
+.s-bar.b3 { height: 17px; }
+.s-bar.b4 { height: 22px; margin-right: 0; }
+
+/* Left SIDE Panel */
 #side-panel {
     position: fixed;
     left: 36px;
-    top: 96px;
-    bottom: 36px;
-    width: 640px;
+    top: 90px;
+    bottom: 34px;
+    width: 690px;
     z-index: 30;
-    padding: 26px 24px 20px 24px;
+    padding: 22px 22px 18px 22px;
 }
 
-.panel-header {
-    padding-bottom: 18px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+.side-header {
+    position: relative;
+    padding-bottom: 14px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.panel-title {
-    font-size: 34px;
+.side-brand {
+    font-size: 32px;
     font-weight: 700;
     color: #00E5FF;
+    line-height: 36px;
 }
 
-.center-title {
-    text-align: center;
-    margin-bottom: 18px;
-}
-
-.panel-subtitle {
-    margin-top: 6px;
-    font-size: 21px;
+#side-counter {
+    position: absolute;
+    right: 2px;
+    top: 6px;
+    font-size: 22px;
+    font-weight: 600;
     color: #94A3B8;
 }
 
-#channel-list {
-    height: 730px;
+.side-tabs {
+    margin-top: 12px;
+}
+
+.side-tab {
+    display: inline-block;
+    padding: 6px 20px;
+    margin-right: 10px;
+    border-radius: 10px;
+    font-size: 21px;
+    font-weight: 600;
+    color: #94A3B8;
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.side-tab.active {
+    background-color: rgba(0, 229, 255, 0.20);
+    border-color: #00E5FF;
+    color: #FFFFFF;
+}
+
+#side-group-caption {
+    position: absolute;
+    right: 2px;
+    bottom: 18px;
+    max-width: 310px;
+    font-size: 21px;
+    font-weight: 600;
+    color: #FFD54F;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#side-list {
+    height: 726px;
     overflow: hidden;
 }
 
-.ch-item {
-    height: 82px;
-    line-height: 82px;
-    padding: 0 22px;
-    margin-bottom: 10px;
-    border-radius: 16px;
-    background-color: rgba(34, 42, 60, 0.76);
+.list-row {
+    position: relative;
+    height: 74px;
+    line-height: 70px;
+    margin-bottom: 7px;
+    padding: 0 110px 0 18px;
+    border-radius: 15px;
+    background-color: rgba(32, 40, 58, 0.72);
     border: 2px solid transparent;
-    font-size: 27px;
+    font-size: 25px;
     font-weight: 500;
     color: #F1F5F9;
     white-space: nowrap;
@@ -135,72 +183,158 @@ html, body {
     text-overflow: ellipsis;
 }
 
-.ch-item.focused {
+.list-row.focused {
     background-color: #00E5FF;
     border-color: #FFFFFF;
     color: #06101B;
     font-weight: 700;
 }
 
-.ch-badge {
+.row-badge {
     display: inline-block;
-    width: 50px;
-    height: 44px;
-    line-height: 44px;
+    width: 46px;
+    height: 40px;
+    line-height: 40px;
     text-align: center;
-    border-radius: 10px;
-    margin-right: 16px;
-    font-size: 21px;
+    border-radius: 9px;
+    margin-right: 14px;
+    font-size: 19px;
     font-weight: 700;
     color: #FFFFFF;
     background-color: #2B6ED2;
     vertical-align: middle;
 }
 
-.ch-item.focused .ch-badge {
+.list-row.focused .row-badge {
     background-color: #0B2742;
     color: #FFFFFF;
 }
 
-.ch-playing-mark {
+.row-play-mark {
     display: inline-block;
-    margin-right: 10px;
+    margin-right: 8px;
     color: #22C55E;
     font-weight: 700;
 }
 
-.ch-item.focused .ch-playing-mark {
+.list-row.focused .row-play-mark {
     color: #06101B;
 }
 
-.panel-footer {
+.row-right {
     position: absolute;
-    left: 24px;
-    right: 24px;
-    bottom: 20px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    font-size: 20px;
+    right: 18px;
+    top: 0;
+    height: 70px;
+    line-height: 70px;
+    font-size: 22px;
+    font-weight: 600;
+    color: #94A3B8;
+    text-align: right;
+}
+
+.list-row.focused .row-right {
+    color: #06101B;
+}
+
+.fav-star {
+    color: #FFD54F;
+    font-size: 25px;
+    margin-left: 8px;
+}
+
+.list-row.focused .fav-star {
+    color: #0B2742;
+}
+
+.proto-tag {
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 6px;
+    line-height: 20px;
+    vertical-align: middle;
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #CBD5E1;
+}
+
+.list-row.focused .proto-tag {
+    background-color: rgba(6, 16, 27, 0.16);
+    color: #06101B;
+}
+
+.empty-hint {
+    padding: 48px 24px;
+    text-align: center;
+    font-size: 24px;
+    line-height: 36px;
     color: #94A3B8;
 }
 
-.panel-footer span {
-    display: inline-block;
-    margin-right: 22px;
+.side-footer {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 18px;
+    color: #94A3B8;
+    white-space: nowrap;
 }
 
+.hint-key {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 4px;
+    margin-left: 10px;
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 17px;
+}
+
+.hint-key:first-child {
+    margin-left: 0;
+}
+
+.hint-dot {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-left: 14px;
+    margin-right: 5px;
+}
+
+.dot-yellow { background-color: #FACC15; }
+.dot-green  { background-color: #22C55E; }
+.dot-red    { background-color: #EF4444; }
+
+/* Right INFO Panel */
 #info-panel {
     position: fixed;
     right: 36px;
-    top: 96px;
-    width: 680px;
+    top: 90px;
+    width: 710px;
     z-index: 35;
-    padding: 26px 28px;
+    padding: 24px 26px;
+}
+
+.info-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #00E5FF;
+    text-align: center;
+    margin-bottom: 14px;
 }
 
 .info-row {
-    font-size: 24px;
-    line-height: 36px;
+    font-size: 23px;
+    line-height: 34px;
     color: #F1F5F9;
     white-space: nowrap;
     overflow: hidden;
@@ -208,70 +342,76 @@ html, body {
 }
 
 .info-gap {
-    margin-top: 16px;
+    margin-top: 12px;
 }
 
 .diag-title {
-    margin-top: 22px;
+    margin-top: 18px;
     margin-bottom: 10px;
-    padding-top: 14px;
+    padding-top: 12px;
     border-top: 1px solid rgba(255, 255, 255, 0.14);
-    font-size: 22px;
+    font-size: 21px;
     font-weight: 700;
     color: #FFD54F;
 }
 
 #diag-log {
-    height: 340px;
+    height: 330px;
     overflow: hidden;
     padding: 12px 14px;
     border-radius: 12px;
-    background-color: rgba(8, 12, 20, 0.85);
+    background-color: rgba(8, 12, 20, 0.88);
     font-family: "DejaVu Sans Mono", monospace;
-    font-size: 18px;
-    line-height: 26px;
+    font-size: 17px;
+    line-height: 25px;
     color: #CBD5E1;
 }
 
+/* Bottom OSD Bar */
 #osd-bar {
     position: fixed;
-    left: 160px;
-    right: 160px;
-    bottom: 36px;
+    left: 220px;
+    right: 220px;
+    bottom: 34px;
     z-index: 25;
-    padding: 22px 34px;
+    padding: 20px 32px;
     text-align: center;
 }
 
 #osd-channel-name {
-    font-size: 34px;
+    font-size: 33px;
     font-weight: 700;
     color: #00E5FF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #osd-channel-meta {
     margin-top: 8px;
-    font-size: 23px;
+    font-size: 22px;
     color: #E2E8F0;
 }
 
+/* Toast */
 #toast-box {
     position: fixed;
     left: 50%;
-    bottom: 140px;
-    width: 760px;
-    margin-left: -380px;
+    bottom: 148px;
+    width: 780px;
+    margin-left: -390px;
     z-index: 50;
     padding: 18px 28px;
     text-align: center;
-    font-size: 26px;
+    font-size: 25px;
     font-weight: 600;
     color: #FFFFFF;
-    background-color: rgba(11, 39, 66, 0.94);
+    background-color: rgba(11, 39, 66, 0.95);
     border: 2px solid #00E5FF;
     border-radius: 16px;
 }
 
+/* Splash */
 #splash-overlay {
     position: fixed;
     left: 0;
