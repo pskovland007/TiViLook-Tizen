@@ -296,7 +296,7 @@
 
     function resetSideAutoHide() {
         if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
-        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen()) && !(window.TiViTester && window.TiViTester.isOpen()) && !(window.TiViEpg && window.TiViEpg.isOpen())) {
+        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen()) && !(window.TiViTester && window.TiViTester.isOpen()) && !(window.TiViEpg && window.TiViEpg.isOpen()) && !(window.TiViQr && window.TiViQr.isOpen())) {
             var delayMs = (window.TiViThemes && window.TiViThemes.getAutoHideMs) ? window.TiViThemes.getAutoHideMs() : 16000;
             if (delayMs > 0) {
                 autoHideSideTimer = setTimeout(function () {
@@ -1042,9 +1042,10 @@
                 kind: 'select',
                 id: p.id,
                 title: p.title,
-                rightText: (activePlaylistId === p.id) ? 'АКТИВЕН' : (p.type === 'usb' ? 'USB' : 'URL')
+                rightText: (activePlaylistId === p.id) ? 'АКТИВЕН' : (p.type === 'usb' ? 'USB' : (p.type === 'qr' ? 'QR' : 'URL'))
             });
         }
+        rows.push({ kind: 'add_qr', title: 'Добавить по QR-коду (с телефона)', rightText: 'QR' });
         rows.push({ kind: 'add_url', title: 'Добавить плейлист по ссылке', rightText: 'URL' });
         rows.push({ kind: 'add_usb', title: 'Выбрать файл .m3u с флешки', rightText: 'USB' });
         rows.push({ kind: 'refresh', title: 'Обновить текущий плейлист', rightText: '↻' });
@@ -1237,7 +1238,7 @@
         for (var i = 0; i < userPlaylists.length; i++) {
             sublistItems.push({
                 title: userPlaylists[i].title,
-                sub: userPlaylists[i].type === 'usb' ? 'USB' : 'URL',
+                sub: userPlaylists[i].type === 'usb' ? 'USB' : (userPlaylists[i].type === 'qr' ? 'QR' : 'URL'),
                 payload: userPlaylists[i].id
             });
         }
@@ -1454,6 +1455,7 @@
                     if (r.kind === 'settings') iconHtml = '⚙  ';
                     if (r.kind === 'tester') iconHtml = '✓  ';
                     if (r.kind === 'epg') iconHtml = '📅  ';
+                    if (r.kind === 'add_qr') iconHtml = '⊞  ';
                 }
                 if (isFoc) rowCls += ' focused';
 
@@ -2046,6 +2048,11 @@
                 sideTab = 'channels';
                 renderSideList();
             }
+        } else if (row.kind === 'add_qr') {
+            if (window.TiViQr) {
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViQr.open();
+            }
         } else if (row.kind === 'add_url') {
             openAddUrlModal();
         } else if (row.kind === 'add_usb') {
@@ -2074,6 +2081,10 @@
     }
 
     function handleKeyDown(e) {
+        if (window.TiViQr && window.TiViQr.isOpen()) {
+            window.TiViQr.handleKey(e);
+            return;
+        }
         if (window.TiViEpg && window.TiViEpg.isOpen()) {
             window.TiViEpg.handleKey(e);
             return;
@@ -2215,6 +2226,13 @@
             e.preventDefault();
             setInfoVisible(false);
             setSideVisible(true, 'playlists');
+        } else if (code === 52 || code === 81) { // 4 / 'q' -> QR Playlist Transfer
+            e.preventDefault();
+            if (window.TiViQr) {
+                setInfoVisible(false);
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViQr.open();
+            }
         } else if (code === 51 || code === 458 || code === 69) { // 3 / GUIDE / 'e' -> EPG
             e.preventDefault();
             if (window.TiViEpg) {
@@ -2281,7 +2299,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v0.6: ' + sysDesc);
+        addLog('Старт TiViLook v1.0: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2380,6 +2398,54 @@
             closeSidePanel: function () { setSideVisible(false); },
             showToast: showToast,
             addLog: addLog,
+            openManualUrlModal: openAddUrlModal,
+            importPlaylistFromQrUrl: function (customTitle, rawUrl, cb) {
+                var cleanUrl = trimStr(rawUrl);
+                if (cleanUrl.indexOf('http://') !== 0 && cleanUrl.indexOf('https://') !== 0) {
+                    cleanUrl = 'http://' + cleanUrl;
+                }
+                fetchPlaylistUrlSmart(cleanUrl, 13000, function (err, text, workingUrl) {
+                    if (err || !text) {
+                        if (cb) cb(false, err || 'нет ответа');
+                        return;
+                    }
+                    var parsed = parseM3uText(text, true);
+                    if (parsed.length === 0) {
+                        if (cb) cb(false, 'каналы #EXTINF не найдены');
+                        return;
+                    }
+                    var title = trimStr(customTitle) || inferPlaylistTitleFromUrl(workingUrl);
+                    var newId = 'qr_' + (new Date().getTime());
+                    userPlaylists.push({ id: newId, title: title, type: 'url', source: workingUrl });
+                    saveJson('user_playlists', userPlaylists);
+                    cacheUserPlaylistChannels(newId, parsed);
+                    activePlaylistId = newId;
+                    saveJson('active_playlist_id', activePlaylistId);
+                    setSideVisible(false);
+                    showToast('Плейлист добавлен по QR: ' + title + ' (' + parsed.length + ' кан.)', 3400);
+                    addLog('QR URL «' + title + '»: ' + parsed.length + ' кан.');
+                    mirrorsMap = {};
+                    applyLoadedChannelsAndStart(parsed, true, false);
+                    if (cb) cb(true, '');
+                });
+            },
+            importPlaylistFromQrText: function (customTitle, m3uText) {
+                var parsed = parseM3uText(m3uText, true);
+                if (parsed.length === 0) return false;
+                var title = trimStr(customTitle) || ('Лист с телефона ' + (userPlaylists.length + 1));
+                var newId = 'qrfile_' + (new Date().getTime());
+                userPlaylists.push({ id: newId, title: title, type: 'qr', source: '' });
+                saveJson('user_playlists', userPlaylists);
+                cacheUserPlaylistChannels(newId, parsed);
+                activePlaylistId = newId;
+                saveJson('active_playlist_id', activePlaylistId);
+                setSideVisible(false);
+                showToast('Файл принят по QR: ' + title + ' (' + parsed.length + ' кан.)', 3400);
+                addLog('QR Файл «' + title + '»: ' + parsed.length + ' кан.');
+                mirrorsMap = {};
+                applyLoadedChannelsAndStart(parsed, true, false);
+                return true;
+            },
             refreshUi: function () {
                 rebuildDisplayedChannels();
                 if (isSideVisible) renderSideList();
@@ -2392,6 +2458,9 @@
         }
         if (window.TiViEpg) {
             window.TiViEpg.init();
+        }
+        if (window.TiViQr) {
+            window.TiViQr.init();
         }
 
         document.addEventListener('keydown', handleKeyDown, false);

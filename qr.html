@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TiViLook — Отправка плейлиста на ТВ</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            background: #0B1220;
+            color: #F1F5F9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            padding: 18px 14px 36px 14px;
+            display: flex;
+            justify-content: center;
+        }
+        .card {
+            width: 100%;
+            max-width: 480px;
+            background: #141C2E;
+            border: 1.5px solid rgba(0, 229, 255, 0.45);
+            border-radius: 20px;
+            padding: 22px 18px 24px 18px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .brand img {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+        }
+        .brand h1 {
+            font-size: 21px;
+            color: #00E5FF;
+            line-height: 1.2;
+        }
+        .brand p {
+            font-size: 13px;
+            color: #94A3B8;
+        }
+        .session-pill {
+            background: rgba(0, 229, 255, 0.10);
+            border: 1px solid rgba(0, 229, 255, 0.28);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #CBD5E1;
+            margin-bottom: 16px;
+        }
+        .session-pill strong { color: #00E5FF; }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 11px 8px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255, 255, 255, 0.14);
+            background: #1E293B;
+            color: #94A3B8;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .tab-btn.active {
+            background: #00E5FF;
+            border-color: #FFFFFF;
+            color: #06101B;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #CBD5E1;
+            margin: 12px 0 6px 0;
+        }
+        input[type="text"], input[type="url"] {
+            width: 100%;
+            padding: 12px 13px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255, 255, 255, 0.16);
+            background: #0A101D;
+            color: #FFFFFF;
+            font-size: 15px;
+            outline: none;
+        }
+        input:focus { border-color: #00E5FF; }
+        .file-box {
+            border: 1.5px dashed rgba(0, 229, 255, 0.45);
+            border-radius: 14px;
+            padding: 18px 14px;
+            text-align: center;
+            background: rgba(10, 16, 29, 0.7);
+        }
+        .file-box input {
+            width: 100%;
+            color: #CBD5E1;
+            font-size: 14px;
+        }
+        .file-info {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #4ADE80;
+            word-break: break-word;
+        }
+        .hidden { display: none; }
+        .send-btn {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            border-radius: 14px;
+            border: none;
+            background: #22C55E;
+            color: #052E16;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 14px;
+            padding: 11px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.4;
+            display: none;
+        }
+        .status.ok { display: block; background: rgba(34, 197, 94, 0.16); border: 1px solid #22C55E; color: #86EFAC; }
+        .status.err { display: block; background: rgba(239, 68, 68, 0.16); border: 1px solid #EF4444; color: #FCA5A5; }
+        .status.info { display: block; background: rgba(250, 204, 21, 0.14); border: 1px solid #FACC15; color: #FDE047; }
+        .sec-note {
+            margin-top: 16px;
+            font-size: 12px;
+            color: #64748B;
+            text-align: center;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="brand">
+        <img src="icon.png" alt="TiViLook" onerror="this.style.display='none'">
+        <div>
+            <h1>TiViLook TV</h1>
+            <p>Отправка плейлиста на Samsung TV</p>
+        </div>
+    </div>
+
+    <div id="session-pill" class="session-pill">Проверка параметров QR-кода...</div>
+
+    <div class="tabs">
+        <button id="tab-url" type="button" class="tab-btn active">По ссылке (URL)</button>
+        <button id="tab-file" type="button" class="tab-btn">Файл .m3u с телефона</button>
+    </div>
+
+    <label for="inp-title">Название плейлиста (необязательно)</label>
+    <input id="inp-title" type="text" placeholder="Например: Мой VIP лист">
+
+    <div id="pane-url">
+        <label for="inp-url">Ссылка на плейлист (.m3u / .m3u8)</label>
+        <input id="inp-url" type="url" placeholder="http://...">
+    </div>
+
+    <div id="pane-file" class="hidden">
+        <label for="inp-file">Выберите файл .m3u или .m3u8 на телефоне</label>
+        <div class="file-box">
+            <input id="inp-file" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/x-mpegURL">
+            <div id="file-info" class="file-info"></div>
+        </div>
+    </div>
+
+    <label for="inp-epg">Ссылка на EPG XMLTV (необязательно)</label>
+    <input id="inp-epg" type="url" placeholder="Оставьте пустым для авто-EPG">
+
+    <button id="btn-send" type="button" class="send-btn">Отправить на телевизор</button>
+    <div id="status-box" class="status"></div>
+
+    <div class="sec-note">
+        🔒 Данные шифруются прямо в браузере ключом из QR-кода (после #).<br>
+        Промежуточный сервер не видит ни ссылку, ни ваш плейлист.
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var MAGIC_PREFIX = 'TVLK1:';
+    var mode = 'url';
+    var selectedFileText = '';
+    var selectedFileName = '';
+
+    function getParam(name) {
+        var q = window.location.search.replace(/^\?/, '').split('&');
+        for (var i = 0; i < q.length; i++) {
+            var kv = q[i].split('=');
+            if (decodeURIComponent(kv[0] || '') === name) {
+                return decodeURIComponent(kv[1] || '');
+            }
+        }
+        return '';
+    }
+
+    var relay = getParam('r');
+    var roomId = getParam('id');
+    var visCode = getParam('c');
+    var secretKey = (window.location.hash || '').replace(/^#/, '');
+
+    var elPill = document.getElementById('session-pill');
+    var elTabUrl = document.getElementById('tab-url');
+    var elTabFile = document.getElementById('tab-file');
+    var elPaneUrl = document.getElementById('pane-url');
+    var elPaneFile = document.getElementById('pane-file');
+    var elTitle = document.getElementById('inp-title');
+    var elUrl = document.getElementById('inp-url');
+    var elFile = document.getElementById('inp-file');
+    var elFileInfo = document.getElementById('file-info');
+    var elEpg = document.getElementById('inp-epg');
+    var elSend = document.getElementById('btn-send');
+    var elStatus = document.getElementById('status-box');
+
+    function showStatus(cls, text) {
+        elStatus.className = 'status ' + cls;
+        elStatus.textContent = text;
+    }
+
+    if (!relay || !roomId || !secretKey) {
+        elPill.innerHTML = 'Откройте эту страницу, отсканировав <strong>QR-код на экране телевизора</strong> (в разделе «Плейлисты → Добавить по QR-коду»).';
+        elSend.disabled = true;
+    } else {
+        elPill.innerHTML = 'Сессия ТВ: <strong>' + (visCode || 'OK') + '</strong> • Канал: <strong>' + relay + '</strong> • 🔒 Зашифровано';
+    }
+
+    elTabUrl.onclick = function () {
+        mode = 'url';
+        elTabUrl.className = 'tab-btn active';
+        elTabFile.className = 'tab-btn';
+        elPaneUrl.className = '';
+        elPaneFile.className = 'hidden';
+    };
+
+    elTabFile.onclick = function () {
+        mode = 'file';
+        elTabFile.className = 'tab-btn active';
+        elTabUrl.className = 'tab-btn';
+        elPaneFile.className = '';
+        elPaneUrl.className = 'hidden';
+    };
+
+    elFile.onchange = function () {
+        selectedFileText = '';
+        selectedFileName = '';
+        elFileInfo.textContent = '';
+        var f = elFile.files && elFile.files[0];
+        if (!f) return;
+        if (f.size > 3 * 1024 * 1024) {
+            showStatus('err', 'Файл слишком большой (> 3 МБ). Лучше отправьте ссылку URL.');
+            return;
+        }
+        selectedFileName = f.name;
+        var reader = new FileReader();
+        reader.onload = function () {
+            selectedFileText = '' + (reader.result || '');
+            elFileInfo.textContent = '✓ Выбран: ' + f.name + ' (' + Math.round(f.size / 1024) + ' КБ)';
+            if (!elTitle.value.trim()) {
+                elTitle.value = f.name.replace(/\.(m3u8?|txt)$/i, '');
+            }
+        };
+        reader.readAsText(f, 'UTF-8');
+    };
+
+    // Identical UTF-8 + RC4-drop256 + Base64URL encryption matching TV qr.js
+    function strToUtf8Bytes(str) {
+        var bytes = [];
+        for (var i = 0; i < str.length; i++) {
+            var c = str.charCodeAt(i);
+            if (c < 0x80) bytes.push(c);
+            else if (c < 0x800) bytes.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F));
+            else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length) {
+                var c2 = str.charCodeAt(++i);
+                var cp = 0x10000 + (((c & 0x3FF) << 10) | (c2 & 0x3FF));
+                bytes.push(0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3F), 0x80 | ((cp >> 6) & 0x3F), 0x80 | (cp & 0x3F));
+            } else bytes.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
+        }
+        return bytes;
+    }
+
+    function bytesToBase64Url(bytes) {
+        var alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        var out = [];
+        var i = 0;
+        var n = bytes.length;
+        while (i < n) {
+            var b1 = bytes[i++];
+            var has2 = i < n;
+            var b2 = has2 ? bytes[i++] : 0;
+            var has3 = i < n;
+            var b3 = has3 ? bytes[i++] : 0;
+            out.push(alpha.charAt(b1 >> 2));
+            out.push(alpha.charAt(((b1 & 3) << 4) | (b2 >> 4)));
+            if (has2) out.push(alpha.charAt(((b2 & 15) << 2) | (b3 >> 6)));
+            if (has3) out.push(alpha.charAt(b3 & 63));
+        }
+        return out.join('');
+    }
+
+    function rc4Drop256(keyBytes, dataBytes) {
+        var S = [];
+        var i, j, t;
+        for (i = 0; i < 256; i++) S[i] = i;
+        j = 0;
+        var kLen = keyBytes.length;
+        for (i = 0; i < 256; i++) {
+            j = (j + S[i] + keyBytes[i % kLen]) & 255;
+            t = S[i]; S[i] = S[j]; S[j] = t;
+        }
+        i = 0; j = 0;
+        for (var d = 0; d < 256; d++) {
+            i = (i + 1) & 255;
+            j = (j + S[i]) & 255;
+            t = S[i]; S[i] = S[j]; S[j] = t;
+        }
+        var out = new Array(dataBytes.length);
+        for (var k = 0; k < dataBytes.length; k++) {
+            i = (i + 1) & 255;
+            j = (j + S[i]) & 255;
+            t = S[i]; S[i] = S[j]; S[j] = t;
+            out[k] = dataBytes[k] ^ S[(S[i] + S[j]) & 255];
+        }
+        return out;
+    }
+
+    function encryptPayload(obj, key) {
+        var salt = [];
+        var saltHex = '';
+        for (var s = 0; s < 8; s++) {
+            var rb = Math.floor(Math.random() * 256);
+            salt.push(rb);
+            saltHex += (rb < 16 ? '0' : '') + rb.toString(16);
+        }
+        var plainBytes = strToUtf8Bytes(MAGIC_PREFIX + JSON.stringify(obj));
+        var keyBytes = strToUtf8Bytes(key + ':' + saltHex);
+        var cipherBytes = rc4Drop256(keyBytes, plainBytes);
+        return bytesToBase64Url(salt.concat(cipherBytes));
+    }
+
+    function sendXhr(method, url, headers, body, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.timeout = 20000;
+        for (var h in headers) {
+            if (headers.hasOwnProperty(h)) xhr.setRequestHeader(h, headers[h]);
+        }
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) cb(null);
+                else cb('HTTP ' + xhr.status);
+            }
+        };
+        xhr.ontimeout = function () { cb('Таймаут сети'); };
+        xhr.onerror = function () { cb('Ошибка сети'); };
+        xhr.send(body);
+    }
+
+    elSend.onclick = function () {
+        if (!relay || !roomId || !secretKey) return;
+        var title = (elTitle.value || '').trim();
+        var epg = (elEpg.value || '').trim();
+        var payload = null;
+
+        if (mode === 'url') {
+            var u = (elUrl.value || '').trim();
+            if (!u) {
+                showStatus('err', 'Введите ссылку на плейлист (.m3u / .m3u8)');
+                return;
+            }
+            if (u.indexOf('http://') !== 0 && u.indexOf('https://') !== 0) u = 'http://' + u;
+            payload = { kind: 'url', title: title, url: u, epg: epg };
+        } else {
+            if (!selectedFileText) {
+                showStatus('err', 'Сначала выберите файл .m3u на телефоне');
+                return;
+            }
+            payload = { kind: 'file', title: title || selectedFileName, m3u: selectedFileText, epg: epg };
+        }
+
+        elSend.disabled = true;
+        showStatus('info', 'Шифрование и отправка на телевизор...');
+
+        var encrypted = encryptPayload(payload, secretKey);
+
+        function onDone(err) {
+            elSend.disabled = false;
+            if (err) {
+                showStatus('err', 'Ошибка отправки (' + err + '). Попробуйте обновить QR-код на телевизоре.');
+            } else {
+                showStatus('ok', '✓ Отправлено! Посмотрите на экран телевизора — плейлист загрузится через 2–3 секунды.');
+            }
+        }
+
+        if (relay === 'ntfy') {
+            if (encrypted.length <= 3400) {
+                sendXhr('POST', 'https://ntfy.sh/' + encodeURIComponent(roomId), { 'Content-Type': 'text/plain' }, encrypted, onDone);
+            } else {
+                // Large .m3u file -> ntfy attachment via PUT
+                sendXhr('PUT', 'https://ntfy.sh/' + encodeURIComponent(roomId), { 'Filename': 'playlist.enc', 'Content-Type': 'text/plain' }, encrypted, onDone);
+            }
+        } else if (relay === 'jblob') {
+            sendXhr('PUT', 'https://jsonblob.com/api/jsonBlob/' + encodeURIComponent(roomId), { 'Content-Type': 'application/json', 'Accept': 'application/json' }, JSON.stringify({ d: encrypted }), onDone);
+        } else if (relay === 'kvdb') {
+            sendXhr('POST', 'https://kvdb.io/' + encodeURIComponent(roomId) + '/tvlk', { 'Content-Type': 'text/plain' }, encrypted, onDone);
+        } else {
+            onDone('Неизвестный канал ' + relay);
+        }
+    };
+})();
+</script>
+</body>
+</html>

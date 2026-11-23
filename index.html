@@ -160,6 +160,31 @@
         <div id="epg-url-status"></div>
     </div>
 
+    <!-- Center Modal: QR Playlist Transfer from Smartphone (Stage 3G) -->
+    <div id="qr-modal" class="panel hidden">
+        <div class="modal-title">Добавить плейлист по QR-коду</div>
+        <div class="modal-subtitle">Отсканируйте код камерой телефона и отправьте ссылку или файл .m3u</div>
+        <div class="qr-layout">
+            <div class="qr-canvas-box">
+                <canvas id="qr-canvas" width="380" height="380"></canvas>
+            </div>
+            <div class="qr-info-col">
+                <div id="qr-session-code">Код сессии: —</div>
+                <div class="qr-step">1. Наведите камеру смартфона на QR-код слева.</div>
+                <div class="qr-step">2. Откройте страницу <b>TiViLook TV</b> в браузере телефона.</div>
+                <div class="qr-step">3. Вставьте ссылку на плейлист (или выберите файл .m3u) и нажмите «Отправить».</div>
+                <div id="qr-status-text">Инициализация...</div>
+                <div id="qr-relay-info"></div>
+            </div>
+        </div>
+        <div class="qr-actions-row">
+            <span id="btn-qr-refresh" class="modal-btn primary-btn">↻ Новый код</span>
+            <span id="btn-qr-manual" class="modal-btn">✎ Ввести URL вручную</span>
+            <span id="btn-qr-close" class="modal-btn">Закрыть</span>
+        </div>
+        <div class="modal-footer-hint">◀▶ Кнопки  •  OK Выполнить  •  Назад Закрыть</div>
+    </div>
+
     <!-- Bottom OSD Bar -->
     <div id="osd-bar" class="panel hidden">
         <div id="osd-channel-name">Канал</div>
@@ -181,6 +206,7 @@
     <script type="text/javascript" src="themes.js"></script>
     <script type="text/javascript" src="tester.js"></script>
     <script type="text/javascript" src="epg.js"></script>
+    <script type="text/javascript" src="qr.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </body>
 </html>

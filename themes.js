@@ -214,7 +214,10 @@
         var css = '' +
             'html, body { font-family: ' + t.font + '; color: ' + t.text + '; }\n' +
             '.panel { background-color: ' + panelBg + '; border-color: ' + borderCol + '; box-shadow: ' + shadowCss + '; color: ' + t.text + '; }\n' +
-            '#add-url-modal, #sublist-modal, #settings-modal, #tester-modal, #epg-modal, #epg-url-modal { background-color: ' + modalBg + '; }\n' +
+            '#add-url-modal, #sublist-modal, #settings-modal, #tester-modal, #epg-modal, #epg-url-modal, #qr-modal { background-color: ' + modalBg + '; }\n' +
+            '#qr-status-text { background-color: ' + logBg + '; color: ' + captionCol + '; }\n' +
+            '#qr-session-code { color: ' + t.accent + '; border-color: ' + t.accent + '; }\n' +
+            '#qr-relay-info { color: ' + t.muted + '; }\n' +
             '#clock-badge, #status-badge { background-color: ' + badgeBg + '; color: ' + t.text + '; border-color: ' + dividerCol + '; }\n' +
             '.side-brand, .info-title, .modal-title, #osd-channel-name { color: ' + t.accent + '; }\n' +
             '.side-header, .side-footer, .diag-title { border-color: ' + dividerCol + '; }\n' +

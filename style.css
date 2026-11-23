@@ -1086,3 +1086,88 @@ html, body {
     font-weight: 600;
     color: #FFD54F;
 }
+
+/* QR Code Playlist Transfer Modal (Stage 3G) */
+#qr-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1220px;
+    height: 760px;
+    margin-left: -610px;
+    margin-top: -380px;
+    z-index: 68;
+    padding: 30px 40px 24px 40px;
+}
+
+.qr-layout {
+    position: relative;
+    height: 440px;
+    margin-top: 10px;
+}
+
+.qr-canvas-box {
+    position: absolute;
+    left: 16px;
+    top: 10px;
+    width: 404px;
+    height: 404px;
+    padding: 12px;
+    border-radius: 18px;
+    background-color: #FFFFFF;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+#qr-canvas {
+    display: block;
+    width: 380px;
+    height: 380px;
+}
+
+.qr-info-col {
+    position: absolute;
+    left: 460px;
+    right: 12px;
+    top: 14px;
+}
+
+#qr-session-code {
+    display: inline-block;
+    padding: 8px 18px;
+    margin-bottom: 18px;
+    border-radius: 10px;
+    background-color: rgba(0, 229, 255, 0.16);
+    border: 1px solid rgba(0, 229, 255, 0.45);
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: #00E5FF;
+}
+
+.qr-step {
+    font-size: 23px;
+    line-height: 34px;
+    margin-bottom: 14px;
+}
+
+#qr-status-text {
+    margin-top: 22px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background-color: rgba(8, 12, 22, 0.72);
+    font-size: 22px;
+    line-height: 30px;
+    font-weight: 600;
+    color: #FFD54F;
+}
+
+#qr-relay-info {
+    margin-top: 10px;
+    font-size: 18px;
+    color: #94A3B8;
+}
+
+.qr-actions-row {
+    text-align: center;
+    margin-top: 22px;
+}
