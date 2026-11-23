@@ -23,24 +23,25 @@
         <span id="status-text">Запуск...</span>
     </div>
 
-    <!-- Left SIDE Panel (Groups & Channels) -->
+    <!-- Left SIDE Panel (Playlists / Groups / Channels) -->
     <div id="side-panel" class="panel hidden">
         <div class="side-header">
             <div class="side-brand">TiViLook</div>
             <div id="side-counter">0 / 0</div>
             <div class="side-tabs">
+                <span id="tab-playlists" class="side-tab">Плейлисты</span>
                 <span id="tab-groups" class="side-tab">Группы</span>
                 <span id="tab-channels" class="side-tab active">Каналы</span>
             </div>
             <div id="side-group-caption">Все каналы</div>
         </div>
         <div id="side-list"></div>
-        <div class="side-footer">
+        <div class="side-footer" id="side-footer-hints">
             <span class="hint-key">▲▼</span> Листать
-            <span class="hint-key">◀▶</span> Группы
+            <span class="hint-key">◀▶</span> Вкладки
             <span class="hint-dot dot-yellow"></span> ★ Избр.
             <span class="hint-dot dot-green"></span> Зеркало
-            <span class="hint-dot dot-red"></span> Обновить
+            <span class="hint-dot dot-blue"></span> Листы
         </div>
     </div>
 
@@ -48,6 +49,7 @@
     <div id="info-panel" class="panel hidden">
         <div class="info-title">Info</div>
         <div class="info-block">
+            <div class="info-row" id="info-playlist">Плейлист: Основной</div>
             <div class="info-row" id="info-ch">Канал: —</div>
             <div class="info-row" id="info-group">Группа: —</div>
             <div class="info-row info-gap" id="info-res">Разрешение: —</div>
@@ -59,6 +61,48 @@
         </div>
         <div class="diag-title">Журнал событий</div>
         <div id="diag-log"></div>
+    </div>
+
+    <!-- Center Modal: Add Playlist by URL -->
+    <div id="add-url-modal" class="panel hidden">
+        <div class="modal-title">Добавить плейлист по ссылке</div>
+        <div class="modal-subtitle">Введите URL с пульта или вставьте со смартфона (SmartThings / пульт)</div>
+
+        <div class="form-label">Название плейлиста (необязательно)</div>
+        <div id="field-wrap-title" class="input-wrap">
+            <input id="pl-input-title" type="text" placeholder="Например: Мой лист">
+        </div>
+
+        <div class="form-label">Ссылка на M3U / M3U8 (поддерживаются короткие ссылки)</div>
+        <div id="field-wrap-url" class="input-wrap">
+            <input id="pl-input-url" type="text" placeholder="http://...">
+        </div>
+
+        <div class="preset-label">Быстрая вставка в ссылку (◀ ▶ и OK):</div>
+        <div id="preset-row">
+            <span class="preset-btn" data-val="http://">http://</span>
+            <span class="preset-btn" data-val="https://">https://</span>
+            <span class="preset-btn" data-val="clck.ru/">clck.ru/</span>
+            <span class="preset-btn" data-val="tinyurl.com/">tinyurl.com/</span>
+            <span class="preset-btn" data-val=".m3u">.m3u</span>
+            <span class="preset-btn" data-val=".m3u8">.m3u8</span>
+            <span class="preset-btn preset-clear" data-val="CLEAR">Очистить</span>
+        </div>
+
+        <div id="modal-actions-row">
+            <span id="btn-pl-save" class="modal-btn primary-btn">✓ Загрузить и сохранить</span>
+            <span id="btn-pl-cancel" class="modal-btn">Отмена</span>
+        </div>
+
+        <div id="add-url-status"></div>
+    </div>
+
+    <!-- Center Modal: Delete Playlist / USB Picker -->
+    <div id="sublist-modal" class="panel hidden">
+        <div id="sublist-title" class="modal-title">Выбор</div>
+        <div id="sublist-subtitle" class="modal-subtitle"></div>
+        <div id="sublist-items"></div>
+        <div class="modal-footer-hint">▲▼ Выбор  •  OK Подтвердить  •  Назад Отмена</div>
     </div>
 
     <!-- Bottom OSD Bar -->

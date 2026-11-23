@@ -2,7 +2,7 @@
 <widget xmlns="http://www.w3.org/ns/widgets"
         xmlns:tizen="http://tizen.org/ns/widgets"
         id="http://tivilook.local/TiViLook"
-        version="0.2.0"
+        version="0.3.0"
         viewmodes="maximized">
     <tizen:application id="tvlkTizen1.TiViLook" package="tvlkTizen1" required_version="2.3"/>
     <content src="index.html"/>
@@ -12,6 +12,7 @@
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
     <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
     <tizen:profile name="tv-samsung"/>
     <tizen:setting screen-orientation="landscape"
                    context-menu="enable"
