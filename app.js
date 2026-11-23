@@ -221,11 +221,11 @@
     // DOM refs
     var elClock, elSignalBars, elStatusText, elSidePanel, elSideCounter;
     var elTabPlaylists, elTabGroups, elTabChannels, elSideGroupCaption, elSideList;
-    var elInfoPanel, elInfoPlaylist, elInfoCh, elInfoGroup, elInfoRes, elInfoProto;
+    var elInfoPanel, elInfoPlaylist, elInfoCh, elInfoGroup, elInfoEpgNow, elInfoEpgNext, elInfoRes, elInfoProto;
     var elInfoState, elInfoCatalog, elInfoEngine, elInfoTizen, elDiagLog;
     var elAddUrlModal, elWrapTitle, elWrapUrl, elInputTitle, elInputUrl, elPresetBtns, elBtnSave, elBtnCancel, elAddUrlStatus;
     var elSublistModal, elSublistTitle, elSublistSubtitle, elSublistItems;
-    var elOsdBar, elOsdName, elOsdMeta, elToast, elSplash, elHtml5Player, elAvPlayer;
+    var elOsdBar, elOsdName, elOsdMeta, elOsdEpgRow, elOsdEpgTitle, elOsdEpgFill, elToast, elSplash, elHtml5Player, elAvPlayer;
 
     function pad2(n) {
         return n < 10 ? '0' + n : '' + n;
@@ -277,6 +277,16 @@
         var favMark = isFavorite(ch.url) ? '★ ' : '';
         elOsdName.textContent = favMark + ch.name;
         elOsdMeta.textContent = ch.category + '  •  ' + (extraText || currentResText);
+        if (elOsdEpgRow && window.TiViEpg && window.TiViEpg.getCurrentAndNext) {
+            var epgRes = window.TiViEpg.getCurrentAndNext(ch);
+            if (epgRes && epgRes.now) {
+                elOsdEpgTitle.textContent = window.TiViEpg.formatHm(epgRes.now.s) + '–' + window.TiViEpg.formatHm(epgRes.now.e) + '  •  ' + epgRes.now.t;
+                elOsdEpgFill.style.width = epgRes.progressPct + '%';
+                elOsdEpgRow.className = '';
+            } else {
+                elOsdEpgRow.className = 'hidden';
+            }
+        }
         elOsdBar.className = 'panel';
         if (osdTimer) clearTimeout(osdTimer);
         osdTimer = setTimeout(function () {
@@ -286,7 +296,7 @@
 
     function resetSideAutoHide() {
         if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
-        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen()) && !(window.TiViTester && window.TiViTester.isOpen())) {
+        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen()) && !(window.TiViTester && window.TiViTester.isOpen()) && !(window.TiViEpg && window.TiViEpg.isOpen())) {
             var delayMs = (window.TiViThemes && window.TiViThemes.getAutoHideMs) ? window.TiViThemes.getAutoHideMs() : 16000;
             if (delayMs > 0) {
                 autoHideSideTimer = setTimeout(function () {
@@ -548,14 +558,28 @@
         var lines = (text || '').split(/\r?\n/);
         var pendingInf = '';
         var pendingGroup = '';
+        var pendingTvgId = '';
+        var pendingTvgName = '';
         for (var i = 0; i < lines.length; i++) {
             var line = trimStr(lines[i]);
             if (!line) continue;
-            if (line.indexOf('#EXTINF') === 0) {
+            if (line.indexOf('#EXTM3U') === 0 && isUserPlaylist) {
+                var epgM = line.match(/(?:url-tvg|x-tvg-url)="([^"]+)"/i);
+                if (epgM && epgM[1] && window.TiViEpg && window.TiViEpg.setPlaylistEpgUrl) {
+                    var firstEpg = trimStr(epgM[1].split(',')[0]);
+                    if (firstEpg) window.TiViEpg.setPlaylistEpgUrl(firstEpg);
+                }
+            } else if (line.indexOf('#EXTINF') === 0) {
                 pendingInf = line;
                 pendingGroup = '';
+                pendingTvgId = '';
+                pendingTvgName = '';
                 var gm = line.match(/group-title="([^"]*)"/i);
                 if (gm && gm[1]) pendingGroup = trimStr(gm[1]);
+                var idm = line.match(/tvg-id="([^"]*)"/i);
+                if (idm && idm[1]) pendingTvgId = trimStr(idm[1]);
+                var nm = line.match(/tvg-name="([^"]*)"/i);
+                if (nm && nm[1]) pendingTvgName = trimStr(nm[1]);
             } else if (line.indexOf('#EXTGRP:') === 0) {
                 pendingGroup = trimStr(line.substr(8));
             } else if (line.indexOf('http://') === 0 || line.indexOf('https://') === 0) {
@@ -569,6 +593,8 @@
                             name: rawName || 'Канал',
                             category: origCat,
                             url: cleanUrl,
+                            tvgId: pendingTvgId,
+                            tvgName: pendingTvgName,
                             canonKey: canonicalDedupKey(rawName, origCat),
                             code: extractTwoLetters(rawName),
                             badgeColor: badgeColorFor(rawName)
@@ -580,7 +606,9 @@
                                 result.push({
                                     name: cleanDisplayName(rawName),
                                     category: cat,
-                                    url: cleanUrl
+                                    url: cleanUrl,
+                                    tvgId: pendingTvgId,
+                                    tvgName: pendingTvgName
                                 });
                             }
                         }
@@ -588,6 +616,8 @@
                 }
                 pendingInf = '';
                 pendingGroup = '';
+                pendingTvgId = '';
+                pendingTvgName = '';
             }
         }
         return result;
@@ -629,6 +659,8 @@
                         name: cleanDisplayName(ch.name),
                         category: ch.category,
                         url: cleanUrl,
+                        tvgId: ch.tvgId || '',
+                        tvgName: ch.tvgName || '',
                         canonKey: canonKey,
                         code: extractTwoLetters(ch.name),
                         badgeColor: badgeColorFor(ch.name)
@@ -641,6 +673,8 @@
                     name: cleanDisplayName(ch.name),
                     category: ch.category,
                     url: cleanUrl,
+                    tvgId: ch.tvgId || existing.ch.tvgId || '',
+                    tvgName: ch.tvgName || existing.ch.tvgName || '',
                     canonKey: canonKey,
                     code: extractTwoLetters(ch.name),
                     badgeColor: badgeColorFor(ch.name)
@@ -1015,6 +1049,8 @@
         rows.push({ kind: 'add_usb', title: 'Выбрать файл .m3u с флешки', rightText: 'USB' });
         rows.push({ kind: 'refresh', title: 'Обновить текущий плейлист', rightText: '↻' });
         var hiddenCnt = (window.TiViTester && window.TiViTester.getHiddenCount) ? window.TiViTester.getHiddenCount() : 0;
+        var epgChCnt = (window.TiViEpg && window.TiViEpg.getLoadedChannelsCount) ? window.TiViEpg.getLoadedChannelsCount() : 0;
+        rows.push({ kind: 'epg', title: 'Телепрограмма (EPG)', rightText: (epgChCnt > 0 ? ('' + epgChCnt + ' кан.') : 'EPG') });
         rows.push({ kind: 'tester', title: 'Тест каналов', rightText: (hiddenCnt > 0 ? ('Скрыто: ' + hiddenCnt) : '▶') });
         rows.push({ kind: 'settings', title: 'Темы и настройки', rightText: (window.TiViThemes ? window.TiViThemes.getThemeName() : '⚙') });
         if (userPlaylists.length > 0) {
@@ -1417,6 +1453,7 @@
                     if (r.kind === 'refresh') iconHtml = '↻  ';
                     if (r.kind === 'settings') iconHtml = '⚙  ';
                     if (r.kind === 'tester') iconHtml = '✓  ';
+                    if (r.kind === 'epg') iconHtml = '📅  ';
                 }
                 if (isFoc) rowCls += ' focused';
 
@@ -1520,6 +1557,20 @@
         if (elInfoPlaylist) elInfoPlaylist.textContent = 'Плейлист: ' + entry.title;
         if (elInfoCh) elInfoCh.textContent = 'Канал: ' + (currentChannel ? currentChannel.name : '—');
         if (elInfoGroup) elInfoGroup.textContent = 'Группа: ' + (currentChannel ? currentChannel.category : '—');
+        if (elInfoEpgNow && elInfoEpgNext) {
+            if (currentChannel && window.TiViEpg && window.TiViEpg.getCurrentAndNext) {
+                var epgInfo = window.TiViEpg.getCurrentAndNext(currentChannel);
+                elInfoEpgNow.textContent = epgInfo.now
+                    ? ('Сейчас: ' + window.TiViEpg.formatHm(epgInfo.now.s) + '–' + window.TiViEpg.formatHm(epgInfo.now.e) + ' • ' + epgInfo.now.t)
+                    : 'Сейчас: нет программы';
+                elInfoEpgNext.textContent = epgInfo.next
+                    ? ('Далее: ' + window.TiViEpg.formatHm(epgInfo.next.s) + ' • ' + epgInfo.next.t)
+                    : 'Далее: —';
+            } else {
+                elInfoEpgNow.textContent = 'Сейчас: —';
+                elInfoEpgNext.textContent = 'Далее: —';
+            }
+        }
         if (elInfoRes) elInfoRes.textContent = 'Разрешение: ' + currentResText;
         var protoTxt = '—';
         if (activeStreamUrl) {
@@ -1861,7 +1912,7 @@
         try {
             if (typeof tizen !== 'undefined' && tizen.tvinputdevice) {
                 var keys = [
-                    'ChannelUp', 'ChannelDown', 'Info', 'Tools', 'Menu',
+                    'ChannelUp', 'ChannelDown', 'Info', 'Tools', 'Menu', 'Guide',
                     'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
                     'MediaPlay', 'MediaPause', 'MediaStop', 'MediaPlayPause',
                     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
@@ -2002,6 +2053,11 @@
         } else if (row.kind === 'refresh') {
             setSideVisible(false);
             loadActivePlaylist(true, true);
+        } else if (row.kind === 'epg') {
+            if (window.TiViEpg) {
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViEpg.open(currentChannel);
+            }
         } else if (row.kind === 'tester') {
             if (window.TiViTester) {
                 if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
@@ -2018,6 +2074,10 @@
     }
 
     function handleKeyDown(e) {
+        if (window.TiViEpg && window.TiViEpg.isOpen()) {
+            window.TiViEpg.handleKey(e);
+            return;
+        }
         if (window.TiViTester && window.TiViTester.isOpen()) {
             window.TiViTester.handleKey(e);
             return;
@@ -2155,6 +2215,16 @@
             e.preventDefault();
             setInfoVisible(false);
             setSideVisible(true, 'playlists');
+        } else if (code === 51 || code === 458 || code === 69) { // 3 / GUIDE / 'e' -> EPG
+            e.preventDefault();
+            if (window.TiViEpg) {
+                setInfoVisible(false);
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                var epgTarget = (isSideVisible && sideTab === 'channels' && displayedChannels.length > 0)
+                    ? displayedChannels[focusedChannelIdx]
+                    : currentChannel;
+                window.TiViEpg.open(epgTarget);
+            }
         } else if (code === 50 || code === 84) { // 2 / 't' -> Channel Tester
             e.preventDefault();
             if (window.TiViTester) {
@@ -2211,7 +2281,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v0.5: ' + sysDesc);
+        addLog('Старт TiViLook v0.6: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2234,6 +2304,8 @@
         elInfoPlaylist = document.getElementById('info-playlist');
         elInfoCh = document.getElementById('info-ch');
         elInfoGroup = document.getElementById('info-group');
+        elInfoEpgNow = document.getElementById('info-epg-now');
+        elInfoEpgNext = document.getElementById('info-epg-next');
         elInfoRes = document.getElementById('info-res');
         elInfoProto = document.getElementById('info-proto');
         elInfoState = document.getElementById('info-state');
@@ -2260,6 +2332,9 @@
         elOsdBar = document.getElementById('osd-bar');
         elOsdName = document.getElementById('osd-channel-name');
         elOsdMeta = document.getElementById('osd-channel-meta');
+        elOsdEpgRow = document.getElementById('osd-epg-row');
+        elOsdEpgTitle = document.getElementById('osd-epg-title');
+        elOsdEpgFill = document.getElementById('osd-epg-fill');
         elToast = document.getElementById('toast-box');
         elSplash = document.getElementById('splash-overlay');
         elHtml5Player = document.getElementById('html5-player');
@@ -2315,6 +2390,9 @@
         if (window.TiViTester) {
             window.TiViTester.init();
         }
+        if (window.TiViEpg) {
+            window.TiViEpg.init();
+        }
 
         document.addEventListener('keydown', handleKeyDown, false);
 
@@ -2322,6 +2400,11 @@
         setTimeout(function () {
             if (elSplash) elSplash.className = 'hidden';
             loadActivePlaylist(true, false);
+            setTimeout(function () {
+                if (window.TiViEpg && window.TiViEpg.maybeRefreshOncePerDay) {
+                    window.TiViEpg.maybeRefreshOncePerDay();
+                }
+            }, 5000);
         }, 1400);
     }
 

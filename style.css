@@ -898,3 +898,191 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* EPG in Info Panel & OSD Bar (Stage 3C) */
+.info-epg-now {
+    margin-top: 8px;
+    color: #4ADE80;
+    font-weight: 600;
+}
+
+.info-epg-next {
+    color: #94A3B8;
+    font-size: 20px;
+}
+
+#osd-epg-row {
+    margin-top: 10px;
+}
+
+#osd-epg-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #FFD54F;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#osd-epg-track {
+    position: relative;
+    width: 68%;
+    height: 8px;
+    margin: 8px auto 0 auto;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+}
+
+#osd-epg-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 8px;
+    width: 0%;
+    border-radius: 4px;
+    background-color: #22C55E;
+}
+
+/* Full EPG Schedule Modal */
+#epg-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1320px;
+    height: 820px;
+    margin-left: -660px;
+    margin-top: -410px;
+    z-index: 67;
+    padding: 26px 36px 24px 36px;
+}
+
+#epg-top-buttons {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+#epg-list {
+    height: 492px;
+    overflow: hidden;
+}
+
+.epg-row {
+    position: relative;
+    height: 64px;
+    line-height: 60px;
+    margin-bottom: 6px;
+    border-radius: 13px;
+    border: 2px solid transparent;
+    font-size: 22px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.epg-row.epg-past {
+    opacity: 0.62;
+}
+
+.epg-row.focused {
+    opacity: 1;
+    font-weight: 700;
+}
+
+.epg-time {
+    position: absolute;
+    left: 18px;
+    top: 0;
+    width: 220px;
+    height: 60px;
+    line-height: 60px;
+    font-family: "DejaVu Sans Mono", "Roboto", monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #94A3B8;
+}
+
+.epg-prog-title {
+    position: absolute;
+    left: 244px;
+    right: 22px;
+    top: 0;
+    height: 60px;
+    line-height: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.epg-live-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    margin-right: 10px;
+    border-radius: 6px;
+    line-height: 22px;
+    font-size: 15px;
+    font-weight: 700;
+    vertical-align: middle;
+    background-color: #22C55E;
+    color: #06101B;
+}
+
+.epg-row-bar {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.16);
+    overflow: hidden;
+}
+
+.epg-row-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 4px;
+    background-color: #22C55E;
+}
+
+#epg-desc-box {
+    margin-top: 12px;
+    padding: 12px 18px;
+    height: 76px;
+    border-radius: 12px;
+    background-color: rgba(8, 12, 20, 0.78);
+    font-size: 19px;
+    line-height: 26px;
+    color: #CBD5E1;
+    overflow: hidden;
+}
+
+/* Custom EPG URL Sub-Modal */
+#epg-url-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1120px;
+    height: 520px;
+    margin-left: -560px;
+    margin-top: -260px;
+    z-index: 70;
+    padding: 30px 38px 26px 38px;
+}
+
+#epg-preset-row {
+    margin-bottom: 24px;
+}
+
+.epg-url-actions {
+    text-align: center;
+    margin-top: 6px;
+}
+
+#epg-url-status {
+    margin-top: 18px;
+    text-align: center;
+    font-size: 21px;
+    font-weight: 600;
+    color: #FFD54F;
+}

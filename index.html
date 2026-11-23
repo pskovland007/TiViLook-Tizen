@@ -52,6 +52,8 @@
             <div class="info-row" id="info-playlist">Плейлист: Основной</div>
             <div class="info-row" id="info-ch">Канал: —</div>
             <div class="info-row" id="info-group">Группа: —</div>
+            <div class="info-row info-epg-now" id="info-epg-now">Сейчас: —</div>
+            <div class="info-row info-epg-next" id="info-epg-next">Далее: —</div>
             <div class="info-row info-gap" id="info-res">Разрешение: —</div>
             <div class="info-row" id="info-proto">Поток: —</div>
             <div class="info-row" id="info-state">Состояние: —</div>
@@ -126,10 +128,46 @@
         <div class="modal-footer-hint">▲▼ Список / Кнопки  •  ◀▶ Кнопки  •  OK Открыть / Пуск  •  Назад Выход</div>
     </div>
 
+    <!-- Center Modal: Full EPG Schedule (Stage 3C) -->
+    <div id="epg-modal" class="panel hidden">
+        <div id="epg-title" class="modal-title">Телепрограмма</div>
+        <div id="epg-subtitle" class="modal-subtitle"></div>
+        <div id="epg-top-buttons"></div>
+        <div id="epg-list"></div>
+        <div id="epg-desc-box"></div>
+        <div class="modal-footer-hint">▲▼ Программа / Кнопки  •  ◀▶ Другой канал / Кнопки  •  OK Включить  •  Назад Выход</div>
+    </div>
+
+    <!-- Center Modal: Custom EPG URL -->
+    <div id="epg-url-modal" class="panel hidden">
+        <div class="modal-title">Ссылка на телепрограмму (XMLTV)</div>
+        <div class="modal-subtitle">Введите свой адрес .xml / .xml.gz или выберите готовый источник</div>
+        <div class="form-label">URL источника EPG</div>
+        <div id="epg-url-wrap" class="input-wrap">
+            <input id="epg-url-input" type="text" placeholder="http://...">
+        </div>
+        <div class="preset-label">Готовые лёгкие источники (◀ ▶ и OK):</div>
+        <div id="epg-preset-row">
+            <span class="preset-btn" data-val="https://iptvx.one/epg/epg_lite.xml.gz">iptvx.one Lite</span>
+            <span class="preset-btn" data-val="http://epg.it999.ru/epg.xml.gz">epg.it999.ru</span>
+            <span class="preset-btn" data-val="http://teleguide.info/download/new3/xmltv.xml.gz">teleguide.info</span>
+            <span class="preset-btn preset-clear" data-val="CLEAR">Авто</span>
+        </div>
+        <div class="epg-url-actions">
+            <span id="btn-epg-save" class="modal-btn primary-btn">✓ Сохранить и загрузить</span>
+            <span id="btn-epg-cancel" class="modal-btn">Отмена</span>
+        </div>
+        <div id="epg-url-status"></div>
+    </div>
+
     <!-- Bottom OSD Bar -->
     <div id="osd-bar" class="panel hidden">
         <div id="osd-channel-name">Канал</div>
         <div id="osd-channel-meta">Подключение...</div>
+        <div id="osd-epg-row" class="hidden">
+            <div id="osd-epg-title"></div>
+            <div id="osd-epg-track"><div id="osd-epg-fill"></div></div>
+        </div>
     </div>
 
     <!-- Toast -->
@@ -142,6 +180,7 @@
 
     <script type="text/javascript" src="themes.js"></script>
     <script type="text/javascript" src="tester.js"></script>
+    <script type="text/javascript" src="epg.js"></script>
     <script type="text/javascript" src="app.js"></script>
 </body>
 </html>

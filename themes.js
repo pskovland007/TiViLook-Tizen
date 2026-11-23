@@ -214,7 +214,7 @@
         var css = '' +
             'html, body { font-family: ' + t.font + '; color: ' + t.text + '; }\n' +
             '.panel { background-color: ' + panelBg + '; border-color: ' + borderCol + '; box-shadow: ' + shadowCss + '; color: ' + t.text + '; }\n' +
-            '#add-url-modal, #sublist-modal, #settings-modal, #tester-modal { background-color: ' + modalBg + '; }\n' +
+            '#add-url-modal, #sublist-modal, #settings-modal, #tester-modal, #epg-modal, #epg-url-modal { background-color: ' + modalBg + '; }\n' +
             '#clock-badge, #status-badge { background-color: ' + badgeBg + '; color: ' + t.text + '; border-color: ' + dividerCol + '; }\n' +
             '.side-brand, .info-title, .modal-title, #osd-channel-name { color: ' + t.accent + '; }\n' +
             '.side-header, .side-footer, .diag-title { border-color: ' + dividerCol + '; }\n' +
@@ -222,9 +222,15 @@
             '#side-group-caption { color: ' + captionCol + '; }\n' +
             '.side-tab { color: ' + t.muted + '; background-color: ' + cardBg + '; border-color: ' + dividerCol + '; }\n' +
             '.side-tab.active { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
-            '.list-row, .settings-row, .tstat-row { background-color: ' + cardBg + '; color: ' + t.text + '; }\n' +
+            '.list-row, .settings-row, .tstat-row, .epg-row { background-color: ' + cardBg + '; color: ' + t.text + '; }\n' +
             '.list-row.action-row { background-color: ' + actionBg + '; border-color: ' + dividerCol + '; }\n' +
-            '.list-row.focused, .list-row.action-row.focused, .settings-row.focused, .tstat-row.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
+            '.list-row.focused, .list-row.action-row.focused, .settings-row.focused, .tstat-row.focused, .epg-row.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
+            '.epg-time { color: ' + t.muted + '; }\n' +
+            '.epg-row.focused .epg-time { color: ' + t.textOnAccent + '; }\n' +
+            '#epg-desc-box { background-color: ' + logBg + '; color: ' + t.text + '; }\n' +
+            '#osd-epg-title { color: ' + captionCol + '; }\n' +
+            '.info-epg-now { color: ' + (t.isLight ? '#15803D' : '#4ADE80') + '; }\n' +
+            '.info-epg-next { color: ' + t.muted + '; }\n' +
             '.row-right, .settings-val { color: ' + t.muted + '; }\n' +
             '.list-row.focused .row-right, .settings-row.focused .settings-val { color: ' + t.textOnAccent + '; }\n' +
             '.info-row, #osd-channel-meta, .form-label { color: ' + t.text + '; }\n' +
