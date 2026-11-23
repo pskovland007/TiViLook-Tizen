@@ -286,10 +286,13 @@
 
     function resetSideAutoHide() {
         if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
-        if (isSideVisible && activeModal === 'none') {
-            autoHideSideTimer = setTimeout(function () {
-                setSideVisible(false);
-            }, 16000);
+        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen())) {
+            var delayMs = (window.TiViThemes && window.TiViThemes.getAutoHideMs) ? window.TiViThemes.getAutoHideMs() : 16000;
+            if (delayMs > 0) {
+                autoHideSideTimer = setTimeout(function () {
+                    setSideVisible(false);
+                }, delayMs);
+            }
         }
     }
 
@@ -1002,6 +1005,7 @@
         rows.push({ kind: 'add_url', title: 'Добавить плейлист по ссылке', rightText: 'URL' });
         rows.push({ kind: 'add_usb', title: 'Выбрать файл .m3u с флешки', rightText: 'USB' });
         rows.push({ kind: 'refresh', title: 'Обновить текущий плейлист', rightText: '↻' });
+        rows.push({ kind: 'settings', title: 'Темы и настройки', rightText: (window.TiViThemes ? window.TiViThemes.getThemeName() : '⚙') });
         if (userPlaylists.length > 0) {
             rows.push({ kind: 'delete_menu', title: 'Удалить плейлист', rightText: '' + userPlaylists.length });
         }
@@ -1400,6 +1404,7 @@
                     rowCls += ' action-row';
                     iconHtml = '+  ';
                     if (r.kind === 'refresh') iconHtml = '↻  ';
+                    if (r.kind === 'settings') iconHtml = '⚙  ';
                 }
                 if (isFoc) rowCls += ' focused';
 
@@ -1660,7 +1665,10 @@
             try {
                 webapis.avplay.open(url);
                 try { webapis.avplay.setDisplayRect(0, 0, 1920, 1080); } catch (e1) {}
-                try { webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_FULL_SCREEN'); } catch (e2) {}
+                try {
+                    var dispMode = (window.TiViThemes && window.TiViThemes.getDisplayMethod) ? window.TiViThemes.getDisplayMethod() : 'PLAYER_DISPLAY_MODE_FULL_SCREEN';
+                    webapis.avplay.setDisplayMethod(dispMode);
+                } catch (e2) {}
                 try { webapis.avplay.setStreamingProperty('USER_AGENT', DEFAULT_UA); } catch (e3) {}
                 try { webapis.avplay.setTimeoutForBuffering(6); } catch (e4) {}
                 try { webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 2); } catch (e5) {}
@@ -1841,7 +1849,7 @@
         try {
             if (typeof tizen !== 'undefined' && tizen.tvinputdevice) {
                 var keys = [
-                    'ChannelUp', 'ChannelDown', 'Info',
+                    'ChannelUp', 'ChannelDown', 'Info', 'Tools', 'Menu',
                     'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
                     'MediaPlay', 'MediaPause', 'MediaStop', 'MediaPlayPause',
                     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
@@ -1981,12 +1989,21 @@
         } else if (row.kind === 'refresh') {
             setSideVisible(false);
             loadActivePlaylist(true, true);
+        } else if (row.kind === 'settings') {
+            if (window.TiViThemes) {
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViThemes.open();
+            }
         } else if (row.kind === 'delete_menu') {
             openDeletePlaylistModal();
         }
     }
 
     function handleKeyDown(e) {
+        if (window.TiViThemes && window.TiViThemes.isOpen()) {
+            window.TiViThemes.handleKey(e);
+            return;
+        }
         if (activeModal === 'add_url') {
             handleAddUrlModalKey(e);
             return;
@@ -2116,6 +2133,13 @@
             e.preventDefault();
             setInfoVisible(false);
             setSideVisible(true, 'playlists');
+        } else if (code === 10133 || code === 10135 || code === 49 || code === 83) { // MENU / TOOLS / 1 / 's' -> Settings
+            e.preventDefault();
+            if (window.TiViThemes) {
+                setInfoVisible(false);
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViThemes.open();
+            }
         } else if (code === 457 || code === 73) { // INFO or 'i'
             e.preventDefault();
             setInfoVisible(!isInfoVisible);
@@ -2158,7 +2182,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v0.3: ' + sysDesc);
+        addLog('Старт TiViLook v0.4: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2223,6 +2247,38 @@
         userPlaylists = loadJson('user_playlists', []) || [];
         lastChannelByPlaylist = loadJson('last_by_playlist', {}) || {};
         activePlaylistId = loadJson('active_playlist_id', BUILTIN_PLAYLIST_ID) || BUILTIN_PLAYLIST_ID;
+
+        if (window.TiViThemes) {
+            window.TiViThemes.init({
+                onAspectChanged: function (methodName) {
+                    if (hasAvPlay) {
+                        try { webapis.avplay.setDisplayMethod(methodName); } catch (eA) {}
+                    }
+                    addLog('Формат: ' + methodName);
+                },
+                onClosed: function () {
+                    if (isSideVisible) {
+                        renderSideList();
+                        resetSideAutoHide();
+                    }
+                }
+            });
+        }
+
+        window.TiViApp = {
+            getAllChannels: function () { return allChannels; },
+            getDisplayedChannels: function () { return displayedChannels; },
+            getCurrentChannel: function () { return currentChannel; },
+            getActivePlaylist: getActivePlaylistEntry,
+            playChannelObj: playChannelObj,
+            showToast: showToast,
+            addLog: addLog,
+            refreshUi: function () {
+                rebuildDisplayedChannels();
+                if (isSideVisible) renderSideList();
+                updateInfoPanel();
+            }
+        };
 
         document.addEventListener('keydown', handleKeyDown, false);
 

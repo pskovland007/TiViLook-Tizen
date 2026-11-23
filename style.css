@@ -622,3 +622,88 @@ html, body {
     border-radius: 88px;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
 }
+
+/* Settings & Themes Modal (Stage 3A) */
+#settings-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1180px;
+    height: 760px;
+    margin-left: -590px;
+    margin-top: -380px;
+    z-index: 65;
+    padding: 30px 40px 26px 40px;
+}
+
+#theme-swatches {
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.swatch-item {
+    display: inline-block;
+    padding: 7px 14px;
+    margin: 0 5px 6px 5px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    font-size: 18px;
+    font-weight: 600;
+    opacity: 0.68;
+}
+
+.swatch-item.active {
+    opacity: 1;
+    border-width: 3px;
+}
+
+.swatch-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+#settings-list {
+    height: 515px;
+    overflow: hidden;
+}
+
+.settings-row {
+    position: relative;
+    height: 66px;
+    line-height: 62px;
+    margin-bottom: 8px;
+    padding: 0 24px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    font-size: 24px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.settings-row.focused {
+    font-weight: 700;
+}
+
+.settings-label {
+    display: inline-block;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+
+.settings-val {
+    position: absolute;
+    right: 24px;
+    top: 0;
+    height: 62px;
+    line-height: 62px;
+    font-size: 23px;
+    font-weight: 600;
+    text-align: right;
+}
