@@ -214,7 +214,7 @@
         var css = '' +
             'html, body { font-family: ' + t.font + '; color: ' + t.text + '; }\n' +
             '.panel { background-color: ' + panelBg + '; border-color: ' + borderCol + '; box-shadow: ' + shadowCss + '; color: ' + t.text + '; }\n' +
-            '#add-url-modal, #sublist-modal, #settings-modal { background-color: ' + modalBg + '; }\n' +
+            '#add-url-modal, #sublist-modal, #settings-modal, #tester-modal { background-color: ' + modalBg + '; }\n' +
             '#clock-badge, #status-badge { background-color: ' + badgeBg + '; color: ' + t.text + '; border-color: ' + dividerCol + '; }\n' +
             '.side-brand, .info-title, .modal-title, #osd-channel-name { color: ' + t.accent + '; }\n' +
             '.side-header, .side-footer, .diag-title { border-color: ' + dividerCol + '; }\n' +
@@ -222,9 +222,9 @@
             '#side-group-caption { color: ' + captionCol + '; }\n' +
             '.side-tab { color: ' + t.muted + '; background-color: ' + cardBg + '; border-color: ' + dividerCol + '; }\n' +
             '.side-tab.active { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
-            '.list-row, .settings-row { background-color: ' + cardBg + '; color: ' + t.text + '; }\n' +
+            '.list-row, .settings-row, .tstat-row { background-color: ' + cardBg + '; color: ' + t.text + '; }\n' +
             '.list-row.action-row { background-color: ' + actionBg + '; border-color: ' + dividerCol + '; }\n' +
-            '.list-row.focused, .list-row.action-row.focused, .settings-row.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
+            '.list-row.focused, .list-row.action-row.focused, .settings-row.focused, .tstat-row.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
             '.row-right, .settings-val { color: ' + t.muted + '; }\n' +
             '.list-row.focused .row-right, .settings-row.focused .settings-val { color: ' + t.textOnAccent + '; }\n' +
             '.info-row, #osd-channel-meta, .form-label { color: ' + t.text + '; }\n' +
@@ -234,7 +234,12 @@
             '.input-wrap.focused { border-color: ' + t.accent + '; }\n' +
             '.input-wrap input { color: ' + t.text + '; }\n' +
             '.preset-btn, .modal-btn { background-color: ' + cardBg + '; color: ' + t.text + '; border-color: ' + dividerCol + '; }\n' +
-            '.preset-btn.focused, .modal-btn.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
+            '.preset-btn.focused, .modal-btn.focused, .tstat-btn.focused { background-color: ' + t.accent + '; border-color: ' + focusBorder + '; color: ' + t.textOnAccent + '; }\n' +
+            '.tstat-track { background-color: ' + (t.isLight ? '#D4D4D8' : 'rgba(255,255,255,0.16)') + '; }\n' +
+            '.tstat-row.focused .tstat-track { background-color: rgba(0, 0, 0, 0.35); }\n' +
+            '.tstat-row.focused .tstat-num-ok, .tstat-row.focused .tstat-ch-ok { color: ' + (t.textOnAccent === '#FFFFFF' ? '#86EFAC' : '#065F46') + '; }\n' +
+            '.tstat-row.focused .tstat-num-err, .tstat-row.focused .tstat-ch-err { color: ' + (t.textOnAccent === '#FFFFFF' ? '#FCA5A5' : '#991B1B') + '; }\n' +
+            '.tstat-row.focused .tstat-ch-wait { color: ' + t.textOnAccent + '; }\n' +
             '#toast-box { background-color: ' + modalBg + '; border-color: ' + t.accent + '; color: ' + t.text + '; }\n';
 
         ensureStyleTag().textContent = css;

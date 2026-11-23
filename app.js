@@ -286,7 +286,7 @@
 
     function resetSideAutoHide() {
         if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
-        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen())) {
+        if (isSideVisible && activeModal === 'none' && !(window.TiViThemes && window.TiViThemes.isOpen()) && !(window.TiViTester && window.TiViTester.isOpen())) {
             var delayMs = (window.TiViThemes && window.TiViThemes.getAutoHideMs) ? window.TiViThemes.getAutoHideMs() : 16000;
             if (delayMs > 0) {
                 autoHideSideTimer = setTimeout(function () {
@@ -682,18 +682,27 @@
         return cats;
     }
 
+    function isHiddenByTester(url) {
+        return !!(window.TiViTester && window.TiViTester.isUrlHidden && window.TiViTester.isUrlHidden(url));
+    }
+
     function getChannelsForCategory(catName) {
         var out = [];
-        var i;
+        var i, ch;
         if (catName === '★ Избранное') {
             for (i = 0; i < allChannels.length; i++) {
-                if (favoritesMap[allChannels[i].url]) out.push(allChannels[i]);
+                ch = allChannels[i];
+                if (favoritesMap[ch.url] && !isHiddenByTester(ch.url)) out.push(ch);
             }
         } else if (catName === 'Все каналы') {
-            for (i = 0; i < allChannels.length; i++) out.push(allChannels[i]);
+            for (i = 0; i < allChannels.length; i++) {
+                ch = allChannels[i];
+                if (!isHiddenByTester(ch.url)) out.push(ch);
+            }
         } else {
             for (i = 0; i < allChannels.length; i++) {
-                if (allChannels[i].category === catName) out.push(allChannels[i]);
+                ch = allChannels[i];
+                if (ch.category === catName && !isHiddenByTester(ch.url)) out.push(ch);
             }
         }
         return out;
@@ -1005,6 +1014,8 @@
         rows.push({ kind: 'add_url', title: 'Добавить плейлист по ссылке', rightText: 'URL' });
         rows.push({ kind: 'add_usb', title: 'Выбрать файл .m3u с флешки', rightText: 'USB' });
         rows.push({ kind: 'refresh', title: 'Обновить текущий плейлист', rightText: '↻' });
+        var hiddenCnt = (window.TiViTester && window.TiViTester.getHiddenCount) ? window.TiViTester.getHiddenCount() : 0;
+        rows.push({ kind: 'tester', title: 'Тест каналов', rightText: (hiddenCnt > 0 ? ('Скрыто: ' + hiddenCnt) : '▶') });
         rows.push({ kind: 'settings', title: 'Темы и настройки', rightText: (window.TiViThemes ? window.TiViThemes.getThemeName() : '⚙') });
         if (userPlaylists.length > 0) {
             rows.push({ kind: 'delete_menu', title: 'Удалить плейлист', rightText: '' + userPlaylists.length });
@@ -1405,6 +1416,7 @@
                     iconHtml = '+  ';
                     if (r.kind === 'refresh') iconHtml = '↻  ';
                     if (r.kind === 'settings') iconHtml = '⚙  ';
+                    if (r.kind === 'tester') iconHtml = '✓  ';
                 }
                 if (isFoc) rowCls += ' focused';
 
@@ -1862,6 +1874,7 @@
     }
 
     function exitApp() {
+        if (window.TiViTester && window.TiViTester.stop) window.TiViTester.stop(true);
         stopPlayback();
         try {
             if (typeof tizen !== 'undefined' && tizen.application) {
@@ -1989,6 +2002,11 @@
         } else if (row.kind === 'refresh') {
             setSideVisible(false);
             loadActivePlaylist(true, true);
+        } else if (row.kind === 'tester') {
+            if (window.TiViTester) {
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViTester.open();
+            }
         } else if (row.kind === 'settings') {
             if (window.TiViThemes) {
                 if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
@@ -2000,6 +2018,10 @@
     }
 
     function handleKeyDown(e) {
+        if (window.TiViTester && window.TiViTester.isOpen()) {
+            window.TiViTester.handleKey(e);
+            return;
+        }
         if (window.TiViThemes && window.TiViThemes.isOpen()) {
             window.TiViThemes.handleKey(e);
             return;
@@ -2133,6 +2155,13 @@
             e.preventDefault();
             setInfoVisible(false);
             setSideVisible(true, 'playlists');
+        } else if (code === 50 || code === 84) { // 2 / 't' -> Channel Tester
+            e.preventDefault();
+            if (window.TiViTester) {
+                setInfoVisible(false);
+                if (autoHideSideTimer) clearTimeout(autoHideSideTimer);
+                window.TiViTester.open();
+            }
         } else if (code === 10133 || code === 10135 || code === 49 || code === 83) { // MENU / TOOLS / 1 / 's' -> Settings
             e.preventDefault();
             if (window.TiViThemes) {
@@ -2182,7 +2211,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v0.4: ' + sysDesc);
+        addLog('Старт TiViLook v0.5: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2267,10 +2296,13 @@
 
         window.TiViApp = {
             getAllChannels: function () { return allChannels; },
+            getCategories: function () { return currentCategories; },
             getDisplayedChannels: function () { return displayedChannels; },
             getCurrentChannel: function () { return currentChannel; },
             getActivePlaylist: getActivePlaylistEntry,
+            isBuiltinActive: isBuiltinActive,
             playChannelObj: playChannelObj,
+            closeSidePanel: function () { setSideVisible(false); },
             showToast: showToast,
             addLog: addLog,
             refreshUi: function () {
@@ -2279,6 +2311,10 @@
                 updateInfoPanel();
             }
         };
+
+        if (window.TiViTester) {
+            window.TiViTester.init();
+        }
 
         document.addEventListener('keydown', handleKeyDown, false);
 

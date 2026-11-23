@@ -707,3 +707,194 @@ html, body {
     font-weight: 600;
     text-align: right;
 }
+
+/* Background Tester Banner (Stage 3B) */
+#tester-banner {
+    position: fixed;
+    left: 50%;
+    top: 26px;
+    width: 680px;
+    margin-left: -340px;
+    z-index: 45;
+    padding: 10px 24px;
+    text-align: center;
+    font-size: 21px;
+    font-weight: 700;
+    border-radius: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Channel Tester Modal (Option 3 — 3 fixed vertical zones) */
+#tester-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 1280px;
+    height: 780px;
+    margin-left: -640px;
+    margin-top: -390px;
+    z-index: 66;
+    padding: 28px 36px 24px 36px;
+}
+
+#tester-top-buttons {
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.tstat-btn {
+    display: inline-block;
+    padding: 11px 24px;
+    margin: 0 8px 6px 8px;
+    border-radius: 12px;
+    font-size: 21px;
+    font-weight: 700;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    background-color: rgba(36, 46, 68, 0.88);
+    color: #F1F5F9;
+}
+
+.tstat-btn.primary-btn {
+    background-color: rgba(16, 120, 88, 0.88);
+    border-color: #22C55E;
+    color: #FFFFFF;
+}
+
+.tstat-btn.danger-btn {
+    background-color: rgba(153, 27, 27, 0.90);
+    border-color: #EF4444;
+    color: #FFFFFF;
+}
+
+#tester-list {
+    height: 516px;
+    overflow: hidden;
+}
+
+.tstat-row {
+    position: relative;
+    height: 66px;
+    line-height: 62px;
+    margin-bottom: 7px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    font-size: 23px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.tstat-row.focused {
+    font-weight: 700;
+}
+
+/* Zone 1: Left fixed width (0..430px) */
+.tstat-left {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    width: 410px;
+    height: 62px;
+    line-height: 62px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tstat-play {
+    display: inline-block;
+    margin-right: 12px;
+    opacity: 0.78;
+}
+
+/* Zone 2: Middle fixed horizontal progress bar (all start & end at exact same X) */
+.tstat-mid {
+    position: absolute;
+    left: 455px;
+    right: 290px;
+    top: 0;
+    height: 62px;
+}
+
+.tstat-track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 25px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.16);
+    overflow: hidden;
+}
+
+.tstat-fill-green {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 12px;
+    background-color: #22C55E;
+}
+
+.tstat-fill-red {
+    position: absolute;
+    top: 0;
+    height: 12px;
+    background-color: #EF4444;
+}
+
+/* Zone 3: Right fixed-width tabular counters (zero zigzag) */
+.tstat-right {
+    position: absolute;
+    right: 22px;
+    top: 0;
+    width: 246px;
+    height: 62px;
+    line-height: 62px;
+    text-align: right;
+    font-family: "DejaVu Sans Mono", "Roboto", monospace;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.tstat-num-ok {
+    display: inline-block;
+    width: 118px;
+    text-align: right;
+    color: #4ADE80;
+}
+
+.tstat-num-err {
+    display: inline-block;
+    width: 118px;
+    margin-left: 10px;
+    text-align: right;
+    color: #F87171;
+}
+
+/* Channel-level view inside Tester */
+.tstat-ch-status {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    width: 185px;
+    height: 62px;
+    line-height: 62px;
+    font-size: 21px;
+    font-weight: 700;
+}
+
+.tstat-ch-ok   { color: #4ADE80; }
+.tstat-ch-err  { color: #F87171; }
+.tstat-ch-wait { color: #94A3B8; }
+
+.tstat-ch-name {
+    position: absolute;
+    left: 215px;
+    right: 24px;
+    top: 0;
+    height: 62px;
+    line-height: 62px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
