@@ -15,28 +15,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate config.xml and app.js
+      - name: Validate config.xml and all JS modules
         run: |
           python3 -c "import xml.etree.ElementTree as ET; ET.parse('config.xml')"
-          node --check app.js
+          for f in *.js; do
+            echo "Checking $f..."
+            node --check "$f"
+          done
 
-      - name: Package TiViLook-test.wgt
+      - name: Package TiViLook-tizen.wgt
         run: |
-          rm -f TiViLook-test.wgt
-          zip -r9 TiViLook-test.wgt config.xml index.html style.css app.js icon.png
-          unzip -l TiViLook-test.wgt
+          rm -f TiViLook-tizen.wgt
+          zip -r9 TiViLook-tizen.wgt config.xml index.html style.css icon.png *.js
+          unzip -l TiViLook-tizen.wgt
 
       - name: Upload WGT artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TiViLook-test-wgt
-          path: TiViLook-test.wgt
+          name: TiViLook-tizen-wgt
+          path: TiViLook-tizen.wgt
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="tizen-v0.1.${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" TiViLook-test.wgt \
-            --title "TiViLook Samsung TV Test $TAG" \
-            --notes "Тестовая сборка TiViLook (.wgt) для Samsung Tizen TV (AVPlay)."
+          TAG="tizen-v1.0.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" TiViLook-tizen.wgt \
+            --title "TiViLook Samsung TV v1.0 ($TAG)" \
+            --notes "Полная сборка TiViLook для Samsung Tizen 2.4+: открытый каталог, менеджер плейлистов (QR-код со смартфона, URL, USB), 6 тем, Ambilight, Тест каналов (3 колонки) и потоковая телепрограмма EPG."
