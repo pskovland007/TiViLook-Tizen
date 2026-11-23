@@ -151,7 +151,7 @@
         'дагестан', 'чечня', 'грозный', 'осетия', 'нальчик', 'адыгея', 'сигма'
     ];
 
-    var ARABIC_INDIAN_RE = /[؀-ۿऀ-ॿঀ-৿઀-૿஀-௿ఀ-౿ഀ-ൿ]/;
+    var ARABIC_INDIAN_RE = /[\u0600-\u06FF\u0900-\u097F\u0980-\u09FF\u0A80-\u0AFF\u0B80-\u0BFF\u0C00-\u0C7F\u0D00-\u0D7F]/;
 
     // App State
     var hasAvPlay = false;
@@ -472,8 +472,7 @@
 
     function parseM3uText(text) {
         var result = [];
-        var lines = (text || '').split(/?
-/);
+        var lines = (text || '').split(/\r?\n/);
         var pendingInf = '';
         var pendingGroup = '';
         for (var i = 0; i < lines.length; i++) {
