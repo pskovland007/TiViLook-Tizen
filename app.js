@@ -8,6 +8,10 @@
     var PREPARE_TIMEOUT_MS = 5500;
     var INITIAL_STALL_MS = 9000;
     var MIDSTREAM_STALL_MS = 12000;
+    var CHANNEL_SWITCH_DEBOUNCE_MS = 450;
+    var NAV_THROTTLE_MS = 110;
+    var AVPLAY_REOPEN_DELAY_MS = 120;
+    var MAX_RES_CHECKS = 3;
     var DEFAULT_UA = 'Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1';
 
     var DEFAULT_CATEGORIES = [
@@ -189,8 +193,16 @@
     var retryCount = 0;
     var retryTimer = null;
     var prepareTimer = null;
+    var reopenTimer = null;
+    var switchDebounceTimer = null;
+    var preDebounceChannel = null;
     var bufferingSinceMs = 0;
+    var resCheckCount = 0;
     var isCatalogLoading = false;
+    var lastNavKeyMs = 0;
+    var lastUserKeyMs = 0;
+    var categoryCountsCache = null;
+    var resumeAfterHiddenTimer = null;
 
     // UI State
     var isSideVisible = false;
@@ -742,7 +754,32 @@
         return out;
     }
 
+    function invalidateCategoryCounts() {
+        categoryCountsCache = null;
+    }
+
+    function getCategoryCountsMap() {
+        if (categoryCountsCache) return categoryCountsCache;
+        var counts = {};
+        var favCount = 0;
+        var visibleTotal = 0;
+        var i, ch, c;
+        for (i = 0; i < allChannels.length; i++) {
+            ch = allChannels[i];
+            if (isHiddenByTester(ch.url)) continue;
+            visibleTotal++;
+            if (favoritesMap[ch.url]) favCount++;
+            c = ch.category || 'Общие';
+            counts[c] = (counts[c] || 0) + 1;
+        }
+        counts['★ Избранное'] = favCount;
+        counts['Все каналы'] = visibleTotal;
+        categoryCountsCache = counts;
+        return counts;
+    }
+
     function rebuildDisplayedChannels() {
+        invalidateCategoryCounts();
         displayedChannels = getChannelsForCategory(activeCategory);
         if (focusedChannelIdx >= displayedChannels.length) {
             focusedChannelIdx = Math.max(0, displayedChannels.length - 1);
@@ -753,6 +790,12 @@
     // Network XHR with automatic HTTPS -> HTTP fallback for Tizen 2.4 SSL
     // =========================================================================
     function fetchUrlTextRaw(url, timeoutMs, cb) {
+        var settled = false;
+        function done(err, text) {
+            if (settled) return;
+            settled = true;
+            cb(err, text);
+        }
         try {
             var xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
@@ -760,17 +803,17 @@
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4) {
                     if (xhr.status >= 200 && xhr.status < 300 && xhr.responseText) {
-                        cb(null, xhr.responseText);
+                        done(null, xhr.responseText);
                     } else {
-                        cb('HTTP ' + xhr.status, null);
+                        done('HTTP ' + xhr.status, null);
                     }
                 }
             };
-            xhr.ontimeout = function () { cb('timeout', null); };
-            xhr.onerror = function () { cb('net/ssl', null); };
+            xhr.ontimeout = function () { done('timeout', null); };
+            xhr.onerror = function () { done('net/ssl', null); };
             xhr.send(null);
         } catch (e) {
-            cb(e.message || 'xhr err', null);
+            done(e.message || 'xhr err', null);
         }
     }
 
@@ -830,7 +873,7 @@
         if (targetCh) {
             playChannelObj(targetCh, false);
         } else {
-            stopPlayback();
+            stopPlayback(true);
             setSignalStatus('Нет каналов', 1, '#EF4444');
         }
     }
@@ -953,6 +996,200 @@
         }
     }
 
+    function parseM3uTextAsync(text, isUserPlaylist, expectedGen, doneCb) {
+        var result = [];
+        var lines = (text || '').split(/\r?\n/);
+        var pendingInf = '';
+        var pendingGroup = '';
+        var pendingTvgId = '';
+        var pendingTvgName = '';
+        var i = 0;
+        var total = lines.length;
+
+        function step() {
+            if (expectedGen && expectedGen !== playlistLoadGen) {
+                doneCb(null);
+                return;
+            }
+            var nowMs = new Date().getTime();
+            if (nowMs - lastUserKeyMs < 350) {
+                setTimeout(step, 200);
+                return;
+            }
+            var sliceStart = nowMs;
+            var processed = 0;
+            while (i < total && processed < 320) {
+                var line = trimStr(lines[i++]);
+                processed++;
+                if (!line) continue;
+                if (line.indexOf('#EXTM3U') === 0 && isUserPlaylist) {
+                    var epgM = line.match(/(?:url-tvg|x-tvg-url)="([^"]+)"/i);
+                    if (epgM && epgM[1] && window.TiViEpg && window.TiViEpg.setPlaylistEpgUrl) {
+                        var firstEpg = trimStr(epgM[1].split(',')[0]);
+                        if (firstEpg) window.TiViEpg.setPlaylistEpgUrl(firstEpg);
+                    }
+                } else if (line.indexOf('#EXTINF') === 0) {
+                    pendingInf = line;
+                    pendingGroup = '';
+                    pendingTvgId = '';
+                    pendingTvgName = '';
+                    var gm = line.match(/group-title="([^"]*)"/i);
+                    if (gm && gm[1]) pendingGroup = trimStr(gm[1]);
+                    var idm = line.match(/tvg-id="([^"]*)"/i);
+                    if (idm && idm[1]) pendingTvgId = trimStr(idm[1]);
+                    var nm = line.match(/tvg-name="([^"]*)"/i);
+                    if (nm && nm[1]) pendingTvgName = trimStr(nm[1]);
+                } else if (line.indexOf('#EXTGRP:') === 0) {
+                    pendingGroup = trimStr(line.substr(8));
+                } else if (line.indexOf('http://') === 0 || line.indexOf('https://') === 0) {
+                    var cleanUrl = trimStr(line.split('#')[0]);
+                    if (cleanUrl) {
+                        var commaIdx = pendingInf.lastIndexOf(',');
+                        var rawName = (pendingInf && commaIdx !== -1) ? trimStr(pendingInf.substr(commaIdx + 1)) : 'Канал ' + (result.length + 1);
+                        if (isUserPlaylist) {
+                            var origCat = pendingGroup || 'Общие';
+                            result.push({
+                                name: rawName || 'Канал',
+                                category: origCat,
+                                url: cleanUrl,
+                                tvgId: pendingTvgId,
+                                tvgName: pendingTvgName,
+                                canonKey: canonicalDedupKey(rawName, origCat),
+                                code: extractTwoLetters(rawName),
+                                badgeColor: badgeColorFor(rawName)
+                            });
+                        } else if (pendingInf && !isBlockedCast(pendingInf, cleanUrl, pendingGroup)) {
+                            if (rawName && !isArabicOrIndian(rawName, pendingGroup, cleanUrl)) {
+                                var cat = mapCategory(pendingGroup, rawName);
+                                if (!isFilteredOther(rawName, cat, cleanUrl)) {
+                                    result.push({
+                                        name: cleanDisplayName(rawName),
+                                        category: cat,
+                                        url: cleanUrl,
+                                        tvgId: pendingTvgId,
+                                        tvgName: pendingTvgName
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    pendingInf = '';
+                    pendingGroup = '';
+                    pendingTvgId = '';
+                    pendingTvgName = '';
+                }
+                if ((processed & 63) === 0 && (new Date().getTime() - sliceStart) >= 14) break;
+            }
+            if (i < total) {
+                setTimeout(step, 30);
+            } else {
+                doneCb(result);
+            }
+        }
+        setTimeout(step, 20);
+    }
+
+    function buildBuiltinCatalogAsync(candidates, expectedGen, doneCb) {
+        var bestByKey = {};
+        var orderedKeys = [];
+        var seenUrls = {};
+        var mirrorBucket = {};
+        var idx = 0;
+        var total = candidates.length;
+
+        function stepBuild() {
+            if (expectedGen && expectedGen !== playlistLoadGen) {
+                doneCb(null, null);
+                return;
+            }
+            var nowMs = new Date().getTime();
+            if (nowMs - lastUserKeyMs < 350) {
+                setTimeout(stepBuild, 200);
+                return;
+            }
+            var sliceStart = nowMs;
+            var processed = 0;
+            while (idx < total && processed < 220) {
+                var item = candidates[idx++];
+                processed++;
+                var ch = item.ch;
+                var isCurated = !!item.curated;
+                if (!ch || !ch.url || !ch.name) continue;
+                if (isBlockedCast(ch.name, ch.url, ch.category)) continue;
+                if (isFilteredOther(ch.name, ch.category, ch.url)) continue;
+
+                var cleanUrl = trimStr(ch.url.split('#')[0]);
+                var urlLow = cleanUrl.toLowerCase();
+                if (!urlLow || seenUrls[urlLow]) continue;
+                seenUrls[urlLow] = true;
+
+                var canonKey = canonicalDedupKey(ch.name, ch.category);
+                var score = scoreChannelForTizen(ch, isCurated);
+
+                if (canonKey) {
+                    if (!mirrorBucket[canonKey]) mirrorBucket[canonKey] = [];
+                    mirrorBucket[canonKey].push({ url: cleanUrl, score: score });
+                }
+
+                var dedupKey = canonKey + '_' + ch.category;
+                var existing = bestByKey[dedupKey];
+                if (!existing) {
+                    bestByKey[dedupKey] = {
+                        ch: {
+                            name: cleanDisplayName(ch.name),
+                            category: ch.category,
+                            url: cleanUrl,
+                            tvgId: ch.tvgId || '',
+                            tvgName: ch.tvgName || '',
+                            canonKey: canonKey,
+                            code: extractTwoLetters(ch.name),
+                            badgeColor: badgeColorFor(ch.name)
+                        },
+                        score: score
+                    };
+                    orderedKeys.push(dedupKey);
+                } else if (score > existing.score) {
+                    existing.ch = {
+                        name: cleanDisplayName(ch.name),
+                        category: ch.category,
+                        url: cleanUrl,
+                        tvgId: ch.tvgId || existing.ch.tvgId || '',
+                        tvgName: ch.tvgName || existing.ch.tvgName || '',
+                        canonKey: canonKey,
+                        code: extractTwoLetters(ch.name),
+                        badgeColor: badgeColorFor(ch.name)
+                    };
+                    existing.score = score;
+                }
+                if ((processed & 31) === 0 && (new Date().getTime() - sliceStart) >= 14) break;
+            }
+
+            if (idx < total) {
+                setTimeout(stepBuild, 30);
+                return;
+            }
+
+            var newMirrors = {};
+            for (var mk in mirrorBucket) {
+                if (!mirrorBucket.hasOwnProperty(mk)) continue;
+                var arr = mirrorBucket[mk];
+                arr.sort(function (a, b) { return b.score - a.score; });
+                var urls = [];
+                for (var j = 0; j < arr.length && urls.length < 6; j++) {
+                    if (urls.indexOf(arr[j].url) === -1) urls.push(arr[j].url);
+                }
+                newMirrors[mk] = urls;
+            }
+            var finalList = [];
+            for (var k = 0; k < orderedKeys.length; k++) {
+                finalList.push(bestByKey[orderedKeys[k]].ch);
+            }
+            doneCb(finalList, newMirrors);
+        }
+
+        setTimeout(stepBuild, 20);
+    }
+
     function loadOpenCatalogInBackground(manualTrigger, expectedGen) {
         if (isCatalogLoading) return;
         isCatalogLoading = true;
@@ -963,12 +1200,20 @@
         var completed = 0;
         var okSources = 0;
         var fetchedStreams = 0;
+        var nextIdx = 0;
+        var maxConcurrent = 2;
 
         function finishAll() {
-            isCatalogLoading = false;
-            if (expectedGen && expectedGen !== playlistLoadGen) return;
-            if (!isBuiltinActive()) return;
+            if (expectedGen && expectedGen !== playlistLoadGen) {
+                isCatalogLoading = false;
+                return;
+            }
+            if (!isBuiltinActive()) {
+                isCatalogLoading = false;
+                return;
+            }
             if (fetchedStreams === 0) {
+                isCatalogLoading = false;
                 addLog('Сеть: 0 потоков (работает встроенная база)');
                 if (manualTrigger) showToast('Внешние источники недоступны — работает база', 2800);
                 return;
@@ -985,43 +1230,69 @@
                     candidates.push({ ch: list[j], curated: false });
                 }
             }
-            allChannels = buildBuiltinCatalog(candidates);
-            rebuildDisplayedChannels();
+            results = null;
 
-            var compact = [];
-            for (i = 0; i < allChannels.length && i < 550; i++) {
-                compact.push({ n: allChannels[i].name, c: allChannels[i].category, u: allChannels[i].url });
-            }
-            saveJson('cached_builtin', compact);
+            buildBuiltinCatalogAsync(candidates, expectedGen, function (finalList, newMirrors) {
+                isCatalogLoading = false;
+                if (!finalList || (expectedGen && expectedGen !== playlistLoadGen) || !isBuiltinActive()) return;
+                mirrorsMap = newMirrors || {};
+                allChannels = finalList;
+                rebuildDisplayedChannels();
 
-            addLog('Каталог: ' + okSources + '/' + OPEN_SOURCES.length + ' ист. -> ' + allChannels.length + ' кан.');
-            if (manualTrigger) showToast('Каталог обновлён: ' + allChannels.length + ' каналов', 2500);
-            if (isSideVisible) renderSideList();
-            updateInfoPanel();
-        }
-
-        function requestSource(idx) {
-            var srcUrl = OPEN_SOURCES[idx];
-            var shortName = srcUrl.replace(/^https?:\/\//, '').substr(0, 28);
-            fetchUrlTextRaw(srcUrl, 8500, function (err, text) {
-                if (!err && text) {
-                    var parsed = parseM3uText(text, false);
-                    results[idx] = parsed;
-                    if (parsed.length > 0) {
-                        okSources++;
-                        fetchedStreams += parsed.length;
-                    }
-                } else {
-                    results[idx] = null;
-                    addLog('SRC FAIL ' + shortName + ' [' + err + ']');
+                var compact = [];
+                for (var ci = 0; ci < allChannels.length && ci < 550; ci++) {
+                    compact.push({ n: allChannels[ci].name, c: allChannels[ci].category, u: allChannels[ci].url });
                 }
-                completed++;
-                if (completed >= OPEN_SOURCES.length) finishAll();
+                saveJson('cached_builtin', compact);
+
+                addLog('Каталог: ' + okSources + '/' + OPEN_SOURCES.length + ' ист. -> ' + allChannels.length + ' кан.');
+                if (manualTrigger) showToast('Каталог обновлён: ' + allChannels.length + ' каналов', 2500);
+                if (isSideVisible) renderSideList();
+                updateInfoPanel();
             });
         }
 
-        for (var s = 0; s < OPEN_SOURCES.length; s++) {
-            requestSource(s);
+        function pumpQueue() {
+            if (expectedGen && expectedGen !== playlistLoadGen) {
+                isCatalogLoading = false;
+                return;
+            }
+            if (nextIdx >= OPEN_SOURCES.length) return;
+            var idx = nextIdx++;
+            var srcUrl = OPEN_SOURCES[idx];
+            var shortName = srcUrl.replace(/^https?:\/\//, '').substr(0, 28);
+            fetchUrlTextRaw(srcUrl, 8500, function (err, text) {
+                if (expectedGen && expectedGen !== playlistLoadGen) {
+                    isCatalogLoading = false;
+                    return;
+                }
+                if (!err && text) {
+                    parseM3uTextAsync(text, false, expectedGen, function (parsed) {
+                        if (expectedGen && expectedGen !== playlistLoadGen) {
+                            isCatalogLoading = false;
+                            return;
+                        }
+                        results[idx] = parsed || null;
+                        if (parsed && parsed.length > 0) {
+                            okSources++;
+                            fetchedStreams += parsed.length;
+                        }
+                        completed++;
+                        if (completed >= OPEN_SOURCES.length) finishAll();
+                        else pumpQueue();
+                    });
+                } else {
+                    results[idx] = null;
+                    addLog('SRC FAIL ' + shortName + ' [' + err + ']');
+                    completed++;
+                    if (completed >= OPEN_SOURCES.length) finishAll();
+                    else pumpQueue();
+                }
+            });
+        }
+
+        for (var w = 0; w < maxConcurrent && w < OPEN_SOURCES.length; w++) {
+            pumpQueue();
         }
     }
 
@@ -1477,9 +1748,10 @@
             if (start < 0) start = 0;
             end = Math.min(currentCategories.length, start + VISIBLE_ROWS);
 
+            var countsMap = getCategoryCountsMap();
             for (i = start; i < end; i++) {
                 var catName = currentCategories[i];
-                var cnt = getChannelsForCategory(catName).length;
+                var cnt = countsMap[catName] || 0;
                 var cls = 'list-row' + (i === focusedGroupIdx ? ' focused' : '');
                 var mark = (catName === activeCategory) ? '<span class="row-play-mark">●</span>' : '';
                 html += '<div class="' + cls + '">' +
@@ -1649,18 +1921,48 @@
             clearTimeout(prepareTimer);
             prepareTimer = null;
         }
+        if (reopenTimer) {
+            clearTimeout(reopenTimer);
+            reopenTimer = null;
+        }
     }
 
-    function stopPlayback() {
+    function clearSwitchDebounce() {
+        if (switchDebounceTimer) {
+            clearTimeout(switchDebounceTimer);
+            switchDebounceTimer = null;
+        }
+        preDebounceChannel = null;
+    }
+
+    function noopListener() {}
+
+    function stopPlayback(alsoCancelDebounce) {
         playSessionId++;
         clearPlayerTimers();
+        if (alsoCancelDebounce) clearSwitchDebounce();
         bufferingSinceMs = 0;
         if (hasAvPlay) {
-            try {
-                var st = webapis.avplay.getState();
-                if (st !== 'NONE' && st !== 'IDLE') webapis.avplay.stop();
-                webapis.avplay.close();
-            } catch (e) {}
+            var st = 'NONE';
+            try { st = webapis.avplay.getState(); } catch (eSt) {}
+            if (st !== 'NONE') {
+                try {
+                    webapis.avplay.setListener({
+                        onbufferingstart: noopListener,
+                        onbufferingprogress: noopListener,
+                        onbufferingcomplete: noopListener,
+                        onstreamcompleted: noopListener,
+                        oncurrentplaytime: noopListener,
+                        onerror: noopListener
+                    });
+                } catch (eLst) {}
+                try {
+                    if (st === 'READY' || st === 'PLAYING' || st === 'PAUSED') {
+                        webapis.avplay.stop();
+                    }
+                } catch (eStop) {}
+                try { webapis.avplay.close(); } catch (eClose) {}
+            }
         } else if (elHtml5Player) {
             try {
                 elHtml5Player.pause();
@@ -1671,7 +1973,7 @@
     }
 
     function refreshAvPlayResolution() {
-        if (!hasAvPlay) return;
+        if (!hasAvPlay) return false;
         try {
             var tracks = webapis.avplay.getCurrentStreamInfo();
             if (tracks && tracks.length) {
@@ -1681,12 +1983,13 @@
                         if (info && info.Width && info.Height) {
                             currentResText = info.Width + 'x' + info.Height;
                             updateInfoPanel();
-                            return;
+                            return true;
                         }
                     }
                 }
             }
         } catch (e) {}
+        return false;
     }
 
     function scheduleNextMirrorOrRetry(reason) {
@@ -1700,126 +2003,153 @@
             showToast('Канал недоступен (' + reason + ')', 2400);
             return;
         }
+        var schedSid = playSessionId;
         if (activeMirrorIdx + 1 < activeMirrorUrls.length) {
             activeMirrorIdx++;
             var nextUrl = activeMirrorUrls[activeMirrorIdx];
             var tag = (nextUrl.indexOf('http://') === 0) ? 'HTTP' : 'HTTPS';
             addLog('Зеркало #' + (activeMirrorIdx + 1) + ' (' + tag + '): ' + nextUrl.substr(0, 38));
             retryTimer = setTimeout(function () {
+                if (schedSid !== playSessionId) return;
                 openUrlInPlayer(nextUrl);
-            }, 150);
+            }, 220);
         } else {
             addLog('Повтор потока #' + retryCount + '...');
             retryTimer = setTimeout(function () {
+                if (schedSid !== playSessionId) return;
                 openUrlInPlayer(activeStreamUrl);
-            }, 900);
+            }, 950);
+        }
+    }
+
+    function startAvPlaySession(url, mySid) {
+        if (mySid !== playSessionId) return;
+        var sessionFailed = false;
+        function failSession(reason, shouldCloseFirst) {
+            if (mySid !== playSessionId || sessionFailed) return;
+            sessionFailed = true;
+            if (shouldCloseFirst) {
+                stopPlayback(false);
+            } else {
+                clearPlayerTimers();
+                bufferingSinceMs = 0;
+            }
+            scheduleNextMirrorOrRetry(reason);
+        }
+
+        try {
+            webapis.avplay.open(url);
+            try { webapis.avplay.setDisplayRect(0, 0, 1920, 1080); } catch (e1) {}
+            try {
+                var dispMode = (window.TiViThemes && window.TiViThemes.getDisplayMethod) ? window.TiViThemes.getDisplayMethod() : 'PLAYER_DISPLAY_MODE_FULL_SCREEN';
+                webapis.avplay.setDisplayMethod(dispMode);
+            } catch (e2) {}
+            try { webapis.avplay.setStreamingProperty('USER_AGENT', DEFAULT_UA); } catch (e3) {}
+            try { webapis.avplay.setTimeoutForBuffering(6); } catch (e4) {}
+            try { webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 2); } catch (e5) {}
+            try { webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', 3); } catch (e6) {}
+
+            webapis.avplay.setListener({
+                onbufferingstart: function () {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    bufferingSinceMs = new Date().getTime();
+                    setSignalStatus('Буферизация...', 2, '#F59E0B');
+                },
+                onbufferingprogress: function (percent) {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    setSignalStatus('Буфер ' + percent + '%', 2, '#F59E0B');
+                },
+                onbufferingcomplete: function () {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    clearPlayerTimers();
+                    bufferingSinceMs = 0;
+                    hasEverPlayedCurrent = true;
+                    retryCount = 0;
+                    setSignalStatus('Эфир', 4, '#22C55E');
+                    refreshAvPlayResolution();
+                    showOsd(currentChannel, currentResText);
+                },
+                onstreamcompleted: function () {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    addLog('Поток завершён, переподключение...');
+                    failSession('END', true);
+                },
+                oncurrentplaytime: function () {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    bufferingSinceMs = 0;
+                    hasEverPlayedCurrent = true;
+                    if (currentResText === 'Анализ...' && resCheckCount < MAX_RES_CHECKS) {
+                        resCheckCount++;
+                        if (!refreshAvPlayResolution() && resCheckCount >= MAX_RES_CHECKS) {
+                            currentResText = '—';
+                            updateInfoPanel();
+                        }
+                    }
+                },
+                onerror: function (errType) {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    addLog('AVPlay ERR: ' + errType);
+                    failSession(errType, true);
+                }
+            });
+
+            // Hard fast timeout so dead streams switch mirrors in 5.5s instead of 13s
+            prepareTimer = setTimeout(function () {
+                if (mySid !== playSessionId || sessionFailed) return;
+                addLog('Таймаут запуска (5.5с) -> далее');
+                failSession('TIMEOUT', true);
+            }, PREPARE_TIMEOUT_MS);
+
+            webapis.avplay.prepareAsync(
+                function () {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    if (prepareTimer) {
+                        clearTimeout(prepareTimer);
+                        prepareTimer = null;
+                    }
+                    try {
+                        webapis.avplay.play();
+                        bufferingSinceMs = 0;
+                        hasEverPlayedCurrent = true;
+                        retryCount = 0;
+                        setSignalStatus('Эфир', 4, '#22C55E');
+                        refreshAvPlayResolution();
+                        addLog('OK play(): ' + (url.indexOf('https://') === 0 ? 'HTTPS' : 'HTTP'));
+                    } catch (ePlay) {
+                        addLog('play() err: ' + ePlay.message);
+                        failSession('PLAY_ERR', true);
+                    }
+                },
+                function (err) {
+                    if (mySid !== playSessionId || sessionFailed) return;
+                    var msg = (err && err.message) ? err.message : ('' + err);
+                    addLog('prepare FAIL: ' + msg);
+                    failSession(msg, true);
+                }
+            );
+        } catch (ex) {
+            addLog('AVPlay exc: ' + ex.message);
+            failSession('EXC', true);
         }
     }
 
     function openUrlInPlayer(url) {
-        stopPlayback();
+        stopPlayback(false);
         var mySid = playSessionId;
         activeStreamUrl = url;
         hasEverPlayedCurrent = false;
+        resCheckCount = 0;
         bufferingSinceMs = new Date().getTime();
         currentResText = 'Анализ...';
         setSignalStatus('Подключение...', 2, '#F59E0B');
         updateInfoPanel();
 
         if (hasAvPlay) {
-            try {
-                webapis.avplay.open(url);
-                try { webapis.avplay.setDisplayRect(0, 0, 1920, 1080); } catch (e1) {}
-                try {
-                    var dispMode = (window.TiViThemes && window.TiViThemes.getDisplayMethod) ? window.TiViThemes.getDisplayMethod() : 'PLAYER_DISPLAY_MODE_FULL_SCREEN';
-                    webapis.avplay.setDisplayMethod(dispMode);
-                } catch (e2) {}
-                try { webapis.avplay.setStreamingProperty('USER_AGENT', DEFAULT_UA); } catch (e3) {}
-                try { webapis.avplay.setTimeoutForBuffering(6); } catch (e4) {}
-                try { webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', 2); } catch (e5) {}
-                try { webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', 3); } catch (e6) {}
-
-                webapis.avplay.setListener({
-                    onbufferingstart: function () {
-                        if (mySid !== playSessionId) return;
-                        bufferingSinceMs = new Date().getTime();
-                        setSignalStatus('Буферизация...', 2, '#F59E0B');
-                    },
-                    onbufferingprogress: function (percent) {
-                        if (mySid !== playSessionId) return;
-                        setSignalStatus('Буфер ' + percent + '%', 2, '#F59E0B');
-                    },
-                    onbufferingcomplete: function () {
-                        if (mySid !== playSessionId) return;
-                        clearPlayerTimers();
-                        bufferingSinceMs = 0;
-                        hasEverPlayedCurrent = true;
-                        retryCount = 0;
-                        setSignalStatus('Эфир', 4, '#22C55E');
-                        refreshAvPlayResolution();
-                        showOsd(currentChannel, currentResText);
-                    },
-                    onstreamcompleted: function () {
-                        if (mySid !== playSessionId) return;
-                        addLog('Поток завершён, переподключение...');
-                        scheduleNextMirrorOrRetry('END');
-                    },
-                    oncurrentplaytime: function () {
-                        if (mySid !== playSessionId) return;
-                        bufferingSinceMs = 0;
-                        hasEverPlayedCurrent = true;
-                        if (currentResText === 'Анализ...') refreshAvPlayResolution();
-                    },
-                    onerror: function (errType) {
-                        if (mySid !== playSessionId) return;
-                        addLog('AVPlay ERR: ' + errType);
-                        scheduleNextMirrorOrRetry(errType);
-                    }
-                });
-
-                // Hard fast timeout so dead streams switch mirrors in 5.5s instead of 13s!
-                prepareTimer = setTimeout(function () {
-                    if (mySid !== playSessionId) return;
-                    addLog('Таймаут запуска (5.5с) -> далее');
-                    stopPlayback();
-                    scheduleNextMirrorOrRetry('TIMEOUT');
-                }, PREPARE_TIMEOUT_MS);
-
-                webapis.avplay.prepareAsync(
-                    function () {
-                        if (mySid !== playSessionId) return;
-                        if (prepareTimer) {
-                            clearTimeout(prepareTimer);
-                            prepareTimer = null;
-                        }
-                        try {
-                            webapis.avplay.play();
-                            bufferingSinceMs = 0;
-                            hasEverPlayedCurrent = true;
-                            retryCount = 0;
-                            setSignalStatus('Эфир', 4, '#22C55E');
-                            refreshAvPlayResolution();
-                            addLog('OK play(): ' + (url.indexOf('https://') === 0 ? 'HTTPS' : 'HTTP'));
-                        } catch (ePlay) {
-                            addLog('play() err: ' + ePlay.message);
-                            scheduleNextMirrorOrRetry('PLAY_ERR');
-                        }
-                    },
-                    function (err) {
-                        if (mySid !== playSessionId) return;
-                        if (prepareTimer) {
-                            clearTimeout(prepareTimer);
-                            prepareTimer = null;
-                        }
-                        var msg = (err && err.message) ? err.message : ('' + err);
-                        addLog('prepare FAIL: ' + msg);
-                        scheduleNextMirrorOrRetry(msg);
-                    }
-                );
-            } catch (ex) {
-                addLog('AVPlay exc: ' + ex.message);
-                scheduleNextMirrorOrRetry('EXC');
-            }
+            // Brief async yield lets Tizen 2.4 AVPlay release hardware decoder cleanly after close()
+            reopenTimer = setTimeout(function () {
+                reopenTimer = null;
+                startAvPlaySession(url, mySid);
+            }, AVPLAY_REOPEN_DELAY_MS);
         } else if (elHtml5Player) {
             elHtml5Player.src = url;
             elHtml5Player.onplaying = function () {
@@ -1841,7 +2171,11 @@
 
     function playChannelObj(ch, saveLast) {
         if (!ch) return;
-        if (currentChannel && currentChannel.url !== ch.url) {
+        var prevFromDebounce = preDebounceChannel;
+        clearSwitchDebounce();
+        if (prevFromDebounce && prevFromDebounce.url !== ch.url) {
+            previousChannel = prevFromDebounce;
+        } else if (currentChannel && currentChannel.url !== ch.url) {
             previousChannel = currentChannel;
         }
         currentChannel = ch;
@@ -1877,11 +2211,33 @@
             }
         }
         var nextIdx = (idx === -1) ? 0 : (idx + delta + displayedChannels.length) % displayedChannels.length;
+        var targetCh = displayedChannels[nextIdx];
+        if (!targetCh) return;
+
+        if (!switchDebounceTimer) {
+            preDebounceChannel = currentChannel;
+            // Immediately release current stream/retries once so rapid flipping never queues AVPlay calls
+            stopPlayback(false);
+        } else {
+            clearTimeout(switchDebounceTimer);
+            switchDebounceTimer = null;
+        }
+
         focusedChannelIdx = nextIdx;
-        playChannelObj(displayedChannels[nextIdx], true);
+        currentChannel = targetCh;
+        currentResText = '—';
+        setSignalStatus('Переключение...', 2, '#F59E0B');
+        showOsd(targetCh, (nextIdx + 1) + ' / ' + displayedChannels.length);
+        if (isInfoVisible) updateInfoPanel();
+
+        switchDebounceTimer = setTimeout(function () {
+            switchDebounceTimer = null;
+            playChannelObj(targetCh, true);
+        }, CHANNEL_SWITCH_DEBOUNCE_MS);
     }
 
     function switchNextMirrorManually() {
+        clearSwitchDebounce();
         if (!currentChannel || activeMirrorUrls.length <= 1) {
             showToast('У этого канала нет других зеркал', 1800);
             return;
@@ -1928,7 +2284,7 @@
 
     function exitApp() {
         if (window.TiViTester && window.TiViTester.stop) window.TiViTester.stop(true);
-        stopPlayback();
+        stopPlayback(true);
         try {
             if (typeof tizen !== 'undefined' && tizen.application) {
                 tizen.application.getCurrentApplication().exit();
@@ -2081,6 +2437,7 @@
     }
 
     function handleKeyDown(e) {
+        lastUserKeyMs = new Date().getTime();
         if (window.TiViQr && window.TiViQr.isOpen()) {
             window.TiViQr.handleKey(e);
             return;
@@ -2107,6 +2464,14 @@
         }
 
         var code = e.keyCode;
+        if (code === 38 || code === 40 || code === 427 || code === 428) {
+            var nowNav = new Date().getTime();
+            if (nowNav - lastNavKeyMs < NAV_THROTTLE_MS) {
+                e.preventDefault();
+                return;
+            }
+            lastNavKeyMs = nowNav;
+        }
         if (isSideVisible) resetSideAutoHide();
 
         if (code === 38) { // UP
@@ -2299,7 +2664,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v1.0: ' + sysDesc);
+        addLog('Старт TiViLook v1.0.1: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2392,6 +2757,7 @@
             getCategories: function () { return currentCategories; },
             getDisplayedChannels: function () { return displayedChannels; },
             getCurrentChannel: function () { return currentChannel; },
+            getLastUserKeyMs: function () { return lastUserKeyMs; },
             getActivePlaylist: getActivePlaylistEntry,
             isBuiltinActive: isBuiltinActive,
             playChannelObj: playChannelObj,
@@ -2464,6 +2830,23 @@
         }
 
         document.addEventListener('keydown', handleKeyDown, false);
+        document.addEventListener('visibilitychange', function () {
+            if (resumeAfterHiddenTimer) {
+                clearTimeout(resumeAfterHiddenTimer);
+                resumeAfterHiddenTimer = null;
+            }
+            if (document.hidden) {
+                stopPlayback(true);
+            } else if (currentChannel) {
+                var chToResume = currentChannel;
+                resumeAfterHiddenTimer = setTimeout(function () {
+                    resumeAfterHiddenTimer = null;
+                    if (!document.hidden && currentChannel && currentChannel.url === chToResume.url) {
+                        openUrlInPlayer(activeStreamUrl || chToResume.url);
+                    }
+                }, 350);
+            }
+        }, false);
 
         // Hide splash after 1.4s and load active playlist
         setTimeout(function () {
@@ -2473,7 +2856,7 @@
                 if (window.TiViEpg && window.TiViEpg.maybeRefreshOncePerDay) {
                     window.TiViEpg.maybeRefreshOncePerDay();
                 }
-            }, 5000);
+            }, 15000);
         }, 1400);
     }
 

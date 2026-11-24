@@ -4,7 +4,7 @@
     var STORAGE_CFG_KEY = 'tivilook_tizen_v3_epg_cfg';
     var STORAGE_CACHE_KEY = 'tivilook_tizen_v3_epg_cache';
     var VISIBLE_ROWS = 7;
-    var MAX_GZIP_BYTES = 18 * 1024 * 1024;
+    var MAX_GZIP_BYTES = 8 * 1024 * 1024;
     var WINDOW_PAST_MS = 2 * 3600 * 1000;
     var WINDOW_FUTURE_MS = 26 * 3600 * 1000;
     var CACHE_TTL_MS = 18 * 3600 * 1000;
@@ -376,9 +376,16 @@
 
         function stepSlice() {
             if (mySid !== loadSessionId) return;
+            var nowMs = new Date().getTime();
+            var lastKey = (window.TiViApp && window.TiViApp.getLastUserKeyMs) ? window.TiViApp.getLastUserKeyMs() : 0;
+            if (nowMs - lastKey < 500) {
+                setTimeout(stepSlice, 300);
+                return;
+            }
+            var sliceStart = nowMs;
             var ops = 0;
             try {
-                while (ops < 28000) {
+                while (ops < 10000) {
                     if (!inBlock) {
                         bfinal = readBits(1);
                         var btype = readBits(2);
@@ -393,7 +400,7 @@
                                 win[wpos] = b;
                                 wpos = (wpos + 1) & 32767;
                                 outBuf[outLen++] = b;
-                                if (outLen >= 48000) flushChunk();
+                                if (outLen >= 24000) flushChunk();
                             }
                             ops += ln + 16;
                             if (bfinal) {
@@ -470,8 +477,11 @@
                         ops += length;
                     }
 
-                    if (outLen >= 48000) {
+                    if (outLen >= 24000) {
                         flushChunk();
+                        break;
+                    }
+                    if ((ops & 511) === 0 && (new Date().getTime() - sliceStart) >= 14) {
                         break;
                     }
                 }
@@ -480,7 +490,7 @@
                 onDone(ex.message || 'inflate_err');
                 return;
             }
-            setTimeout(stepSlice, 12);
+            setTimeout(stepSlice, 45);
         }
 
         setTimeout(stepSlice, 10);
@@ -699,6 +709,14 @@
             var shortUrl = url.replace(/^https?:\/\//i, '').substr(0, 34);
             var wantBinary = /\.gz(\?|$)/i.test(url);
 
+            var reqSettled = false;
+            function failSource(logMsg) {
+                if (reqSettled || mySid !== loadSessionId) return;
+                reqSettled = true;
+                activeXhr = null;
+                if (logMsg && window.TiViApp && window.TiViApp.addLog) window.TiViApp.addLog(logMsg);
+                tryNextSource();
+            }
             try {
                 var xhr = new XMLHttpRequest();
                 activeXhr = xhr;
@@ -708,8 +726,9 @@
                     try { xhr.responseType = 'arraybuffer'; } catch (eRt) {}
                 }
                 xhr.onreadystatechange = function () {
-                    if (mySid !== loadSessionId) return;
+                    if (reqSettled || mySid !== loadSessionId) return;
                     if (xhr.readyState !== 4) return;
+                    reqSettled = true;
                     activeXhr = null;
 
                     if (xhr.status < 200 || xhr.status >= 300) {
@@ -774,9 +793,8 @@
                                 parser.feed(textChunk);
                             }, onParseComplete);
                         } else {
-                            // Server sent plain XML despite .gz URL
-                            var plainDec = decodeUtf8Bytes(u8, u8.length, []);
-                            feedPlainXmlChunked(plainDec.text, mySid, parser, onParseComplete);
+                            // Server sent plain XML despite .gz URL — decode asynchronously in 24KB chunks
+                            feedPlainBytesChunked(u8, mySid, parser, onParseComplete);
                         }
                     } else if (xhr.responseText) {
                         feedPlainXmlChunked(xhr.responseText, mySid, parser, onParseComplete);
@@ -785,24 +803,44 @@
                     }
                 };
                 xhr.ontimeout = function () {
-                    if (mySid !== loadSessionId) return;
-                    activeXhr = null;
-                    if (window.TiViApp && window.TiViApp.addLog) window.TiViApp.addLog('EPG timeout ' + shortUrl);
-                    tryNextSource();
+                    failSource('EPG timeout ' + shortUrl);
                 };
                 xhr.onerror = function () {
-                    if (mySid !== loadSessionId) return;
-                    activeXhr = null;
-                    if (window.TiViApp && window.TiViApp.addLog) window.TiViApp.addLog('EPG net/ssl ' + shortUrl);
-                    tryNextSource();
+                    failSource('EPG net/ssl ' + shortUrl);
                 };
                 xhr.send(null);
             } catch (ex) {
-                tryNextSource();
+                failSource('EPG xhr exc ' + shortUrl);
             }
         }
 
         tryNextSource();
+    }
+
+    function feedPlainBytesChunked(u8, mySid, parser, onDone) {
+        var offset = 0;
+        var total = u8.length;
+        var utf8Carry = [];
+        function step() {
+            if (mySid !== loadSessionId) return;
+            var lastKey = (window.TiViApp && window.TiViApp.getLastUserKeyMs) ? window.TiViApp.getLastUserKeyMs() : 0;
+            if (new Date().getTime() - lastKey < 500) {
+                setTimeout(step, 300);
+                return;
+            }
+            var end = Math.min(total, offset + 24576);
+            var slice = u8.subarray(offset, end);
+            var dec = decodeUtf8Bytes(slice, slice.length, utf8Carry);
+            utf8Carry = dec.carry;
+            if (dec.text) parser.feed(dec.text);
+            offset = end;
+            if (offset < total) {
+                setTimeout(step, 45);
+            } else {
+                onDone(null);
+            }
+        }
+        setTimeout(step, 20);
     }
 
     function feedPlainXmlChunked(text, mySid, parser, onDone) {
@@ -810,16 +848,21 @@
         var total = text.length;
         function step() {
             if (mySid !== loadSessionId) return;
-            var end = Math.min(total, offset + 65536);
+            var lastKey = (window.TiViApp && window.TiViApp.getLastUserKeyMs) ? window.TiViApp.getLastUserKeyMs() : 0;
+            if (new Date().getTime() - lastKey < 500) {
+                setTimeout(step, 300);
+                return;
+            }
+            var end = Math.min(total, offset + 24576);
             parser.feed(text.substring(offset, end));
             offset = end;
             if (offset < total) {
-                setTimeout(step, 10);
+                setTimeout(step, 45);
             } else {
                 onDone(null);
             }
         }
-        setTimeout(step, 5);
+        setTimeout(step, 20);
     }
 
     // =========================================================================
