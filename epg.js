@@ -4,7 +4,7 @@
     var STORAGE_CFG_KEY = 'tivilook_tizen_v3_epg_cfg';
     var STORAGE_CACHE_KEY = 'tivilook_tizen_v3_epg_cache';
     var VISIBLE_ROWS = 7;
-    var MAX_GZIP_BYTES = 8 * 1024 * 1024;
+    var MAX_GZIP_BYTES = 5 * 1024 * 1024;
     var WINDOW_PAST_MS = 2 * 3600 * 1000;
     var WINDOW_FUTURE_MS = 26 * 3600 * 1000;
     var CACHE_TTL_MS = 18 * 3600 * 1000;
@@ -261,41 +261,46 @@
             src = merged;
             totalLen = merged.length;
         }
-        var out = [];
+        var chunks = [];
+        var codes = [];
         var i = 0;
         var nextCarry = [];
         while (i < totalLen) {
             var b0 = src[i];
             if (b0 < 0x80) {
-                out.push(String.fromCharCode(b0));
+                codes.push(b0);
                 i++;
             } else if ((b0 & 0xE0) === 0xC0) {
                 if (i + 1 >= totalLen) { nextCarry = [b0]; break; }
-                var cp2 = ((b0 & 0x1F) << 6) | (src[i + 1] & 0x3F);
-                out.push(String.fromCharCode(cp2));
+                codes.push(((b0 & 0x1F) << 6) | (src[i + 1] & 0x3F));
                 i += 2;
             } else if ((b0 & 0xF0) === 0xE0) {
                 if (i + 2 >= totalLen) {
                     for (var k3 = i; k3 < totalLen; k3++) nextCarry.push(src[k3]);
                     break;
                 }
-                var cp3 = ((b0 & 0x0F) << 12) | ((src[i + 1] & 0x3F) << 6) | (src[i + 2] & 0x3F);
-                out.push(String.fromCharCode(cp3));
+                codes.push(((b0 & 0x0F) << 12) | ((src[i + 1] & 0x3F) << 6) | (src[i + 2] & 0x3F));
                 i += 3;
             } else if ((b0 & 0xF8) === 0xF0) {
                 if (i + 3 >= totalLen) {
                     for (var k4 = i; k4 < totalLen; k4++) nextCarry.push(src[k4]);
                     break;
                 }
-                var cp4 = ((b0 & 0x07) << 18) | ((src[i + 1] & 0x3F) << 12) | ((src[i + 2] & 0x3F) << 6) | (src[i + 3] & 0x3F);
-                cp4 -= 0x10000;
-                out.push(String.fromCharCode(0xD800 + (cp4 >> 10), 0xDC00 + (cp4 & 0x3FF)));
+                var cp4 = (((b0 & 0x07) << 18) | ((src[i + 1] & 0x3F) << 12) | ((src[i + 2] & 0x3F) << 6) | (src[i + 3] & 0x3F)) - 0x10000;
+                codes.push(0xD800 + (cp4 >> 10), 0xDC00 + (cp4 & 0x3FF));
                 i += 4;
             } else {
                 i++;
             }
+            if (codes.length >= 1024) {
+                chunks.push(String.fromCharCode.apply(null, codes));
+                codes.length = 0;
+            }
         }
-        return { text: out.join(''), carry: nextCarry };
+        if (codes.length > 0) {
+            chunks.push(String.fromCharCode.apply(null, codes));
+        }
+        return { text: chunks.join(''), carry: nextCarry };
     }
 
     function gunzipAsyncChunked(u8, mySid, onTextChunk, onDone) {
@@ -725,6 +730,15 @@
                 if (wantBinary) {
                     try { xhr.responseType = 'arraybuffer'; } catch (eRt) {}
                 }
+                xhr.onprogress = function (ev) {
+                    if (reqSettled || mySid !== loadSessionId) return;
+                    var loaded = (ev && ev.loaded) ? ev.loaded : 0;
+                    var total = (ev && ev.lengthComputable && ev.total) ? ev.total : 0;
+                    if (loaded > MAX_GZIP_BYTES || total > MAX_GZIP_BYTES) {
+                        try { xhr.abort(); } catch (eAb) {}
+                        failSource('EPG > 5 МБ (' + shortUrl + ')');
+                    }
+                };
                 xhr.onreadystatechange = function () {
                     if (reqSettled || mySid !== loadSessionId) return;
                     if (xhr.readyState !== 4) return;

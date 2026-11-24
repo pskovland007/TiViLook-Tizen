@@ -5,7 +5,7 @@
     var BUILTIN_PLAYLIST_ID = 'BUILTIN_MAIN';
     var VISIBLE_ROWS = 9;
     var SUBLIST_VISIBLE_ROWS = 6;
-    var PREPARE_TIMEOUT_MS = 5500;
+    var PREPARE_TIMEOUT_MS = 9000;
     var INITIAL_STALL_MS = 9000;
     var MIDSTREAM_STALL_MS = 12000;
     var CHANNEL_SWITCH_DEBOUNCE_MS = 450;
@@ -194,6 +194,8 @@
     var retryTimer = null;
     var prepareTimer = null;
     var reopenTimer = null;
+    var failAsyncTimer = null;
+    var bootGuardTimer = null;
     var switchDebounceTimer = null;
     var preDebounceChannel = null;
     var bufferingSinceMs = 0;
@@ -842,12 +844,45 @@
     // =========================================================================
     // Playlist Loading & Switching
     // =========================================================================
+    function markBootGuardSafe(url) {
+        if (bootGuardTimer) {
+            clearTimeout(bootGuardTimer);
+            bootGuardTimer = null;
+        }
+        saveJson('boot_guard', { ver: '1.0.2', pending: false, url: url || '' });
+    }
+
+    function armBootGuard(url) {
+        if (bootGuardTimer) {
+            clearTimeout(bootGuardTimer);
+            bootGuardTimer = null;
+        }
+        saveJson('boot_guard', { ver: '1.0.2', pending: true, url: url || '' });
+        bootGuardTimer = setTimeout(function () {
+            bootGuardTimer = null;
+            saveJson('boot_guard', { ver: '1.0.2', pending: false, url: url || '' });
+        }, 8000);
+    }
+
     function applyLoadedChannelsAndStart(channels, isUserList, autoPlayLast) {
         allChannels = channels;
         currentCategories = isUserList ? buildUserCategories(channels) : DEFAULT_CATEGORIES.slice(0);
 
         var saved = lastChannelByPlaylist[activePlaylistId] || null;
-        if (saved && saved.category && currentCategories.indexOf(saved.category) !== -1) {
+        var skipSavedForGuard = false;
+        var guardReason = '';
+        if (autoPlayLast && saved && saved.url) {
+            var bg = loadJson('boot_guard', null);
+            if (!bg || bg.ver !== '1.0.2') {
+                skipSavedForGuard = true;
+                guardReason = 'Сброс стартового канала (v1.0.2)';
+            } else if (bg.pending && bg.url === saved.url) {
+                skipSavedForGuard = true;
+                guardReason = 'Пропуск зависшего канала: ' + (saved.name || 'предыдущий');
+            }
+        }
+
+        if (!skipSavedForGuard && saved && saved.category && currentCategories.indexOf(saved.category) !== -1) {
             activeCategory = saved.category;
         } else {
             activeCategory = 'Все каналы';
@@ -859,20 +894,31 @@
         }
 
         var targetCh = displayedChannels[0] || allChannels[0] || null;
-        if (autoPlayLast && saved && saved.url) {
+        if (autoPlayLast && !skipSavedForGuard && saved && saved.url) {
             for (var i = 0; i < allChannels.length; i++) {
                 if (allChannels[i].url === saved.url) {
                     targetCh = allChannels[i];
                     break;
                 }
             }
+        } else if (skipSavedForGuard && targetCh) {
+            addLog('BootGuard: ' + guardReason);
+            showToast(guardReason, 3000);
+            lastChannelByPlaylist[activePlaylistId] = {
+                url: targetCh.url,
+                name: targetCh.name,
+                category: activeCategory
+            };
+            saveJson('last_by_playlist', lastChannelByPlaylist);
         }
 
         if (isSideVisible) renderSideList();
         updateInfoPanel();
         if (targetCh) {
+            armBootGuard(targetCh.url);
             playChannelObj(targetCh, false);
         } else {
+            markBootGuardSafe('');
             stopPlayback(true);
             setSignalStatus('Нет каналов', 1, '#EF4444');
         }
@@ -907,7 +953,7 @@
                 if (myGen === playlistLoadGen && isBuiltinActive()) {
                     loadOpenCatalogInBackground(!!manualRefresh, myGen);
                 }
-            }, manualRefresh ? 50 : 800);
+            }, manualRefresh ? 50 : 5000);
             return;
         }
 
@@ -1201,7 +1247,7 @@
         var okSources = 0;
         var fetchedStreams = 0;
         var nextIdx = 0;
-        var maxConcurrent = 2;
+        var maxConcurrent = 1;
 
         function finishAll() {
             if (expectedGen && expectedGen !== playlistLoadGen) {
@@ -1925,6 +1971,10 @@
             clearTimeout(reopenTimer);
             reopenTimer = null;
         }
+        if (failAsyncTimer) {
+            clearTimeout(failAsyncTimer);
+            failAsyncTimer = null;
+        }
     }
 
     function clearSwitchDebounce() {
@@ -1935,8 +1985,6 @@
         preDebounceChannel = null;
     }
 
-    function noopListener() {}
-
     function stopPlayback(alsoCancelDebounce) {
         playSessionId++;
         clearPlayerTimers();
@@ -1946,16 +1994,6 @@
             var st = 'NONE';
             try { st = webapis.avplay.getState(); } catch (eSt) {}
             if (st !== 'NONE') {
-                try {
-                    webapis.avplay.setListener({
-                        onbufferingstart: noopListener,
-                        onbufferingprogress: noopListener,
-                        onbufferingcomplete: noopListener,
-                        onstreamcompleted: noopListener,
-                        oncurrentplaytime: noopListener,
-                        onerror: noopListener
-                    });
-                } catch (eLst) {}
                 try {
                     if (st === 'READY' || st === 'PLAYING' || st === 'PAUSED') {
                         webapis.avplay.stop();
@@ -2028,13 +2066,27 @@
         function failSession(reason, shouldCloseFirst) {
             if (mySid !== playSessionId || sessionFailed) return;
             sessionFailed = true;
-            if (shouldCloseFirst) {
-                stopPlayback(false);
-            } else {
-                clearPlayerTimers();
-                bufferingSinceMs = 0;
+            if (prepareTimer) {
+                clearTimeout(prepareTimer);
+                prepareTimer = null;
             }
-            scheduleNextMirrorOrRetry(reason);
+            bufferingSinceMs = 0;
+            if (failAsyncTimer) {
+                clearTimeout(failAsyncTimer);
+                failAsyncTimer = null;
+            }
+            // Defer AVPlay stop/close out of native callback stack to avoid Tizen 2.4 deadlock
+            failAsyncTimer = setTimeout(function () {
+                failAsyncTimer = null;
+                if (mySid !== playSessionId) return;
+                if (shouldCloseFirst) {
+                    stopPlayback(false);
+                } else {
+                    clearPlayerTimers();
+                    bufferingSinceMs = 0;
+                }
+                scheduleNextMirrorOrRetry(reason);
+            }, 80);
         }
 
         try {
@@ -2093,10 +2145,10 @@
                 }
             });
 
-            // Hard fast timeout so dead streams switch mirrors in 5.5s instead of 13s
+            // Safe timeout above native 6s buffering timeout so AVPlay fires its own error first
             prepareTimer = setTimeout(function () {
                 if (mySid !== playSessionId || sessionFailed) return;
-                addLog('Таймаут запуска (5.5с) -> далее');
+                addLog('Таймаут запуска (9с) -> далее');
                 failSession('TIMEOUT', true);
             }, PREPARE_TIMEOUT_MS);
 
@@ -2283,6 +2335,7 @@
     }
 
     function exitApp() {
+        markBootGuardSafe(currentChannel ? currentChannel.url : '');
         if (window.TiViTester && window.TiViTester.stop) window.TiViTester.stop(true);
         stopPlayback(true);
         try {
@@ -2664,7 +2717,7 @@
         }
         if (elInfoEngine) elInfoEngine.textContent = 'Плеер: ' + (hasAvPlay ? 'Samsung AVPlay HW' : 'HTML5 Video');
         if (elInfoTizen) elInfoTizen.textContent = 'Система: ' + sysDesc;
-        addLog('Старт TiViLook v1.0.1: ' + sysDesc);
+        addLog('Старт TiViLook v1.0.2: ' + sysDesc);
 
         if (!hasAvPlay && elHtml5Player && elAvPlayer) {
             elAvPlayer.style.display = 'none';
@@ -2829,6 +2882,13 @@
             window.TiViQr.init();
         }
 
+        window.onerror = function (msg, src, ln) {
+            try {
+                addLog('JS ERR: ' + (msg || 'err') + (ln ? (' :' + ln) : ''));
+            } catch (eLog) {}
+            return false;
+        };
+
         document.addEventListener('keydown', handleKeyDown, false);
         document.addEventListener('visibilitychange', function () {
             if (resumeAfterHiddenTimer) {
@@ -2848,15 +2908,10 @@
             }
         }, false);
 
-        // Hide splash after 1.4s and load active playlist
+        // Hide splash after 1.4s and load active playlist (EPG refreshes manually to protect Tizen 2.4 RAM)
         setTimeout(function () {
             if (elSplash) elSplash.className = 'hidden';
             loadActivePlaylist(true, false);
-            setTimeout(function () {
-                if (window.TiViEpg && window.TiViEpg.maybeRefreshOncePerDay) {
-                    window.TiViEpg.maybeRefreshOncePerDay();
-                }
-            }, 15000);
         }, 1400);
     }
 
